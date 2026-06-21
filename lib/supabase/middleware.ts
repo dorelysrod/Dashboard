@@ -12,9 +12,13 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function actualizarSesion(request: NextRequest): Promise<NextResponse> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const enLogin = request.nextUrl.pathname.startsWith("/login");
+  const aLogin = () => NextResponse.redirect(new URL("/login", request.url));
 
   if (!url || !anon) {
-    // Auth deshabilitada hasta configurar Supabase (.env.local). Ver supabase/README.md.
+    // Sin Supabase configurado: en DESARROLLO se deja pasar para trabajar antes
+    // del setup; en PRODUCCIÓN se falla CERRADO (nunca servir el panel sin auth).
+    if (process.env.NODE_ENV === "production" && !enLogin) return aLogin();
     return NextResponse.next({ request });
   }
 
@@ -40,22 +44,19 @@ export async function actualizarSesion(request: NextRequest): Promise<NextRespon
   });
 
   // getUser() valida el token contra Supabase (no confía en la cookie sin verificar).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const enLogin = request.nextUrl.pathname.startsWith("/login");
-
-  if (!user && !enLogin) {
-    const destino = request.nextUrl.clone();
-    destino.pathname = "/login";
-    return NextResponse.redirect(destino);
+  // Cualquier fallo (red/token) → se trata como SIN sesión (fail closed).
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    user = null;
   }
 
+  if (!user && !enLogin) return aLogin();
+
   if (user && enLogin) {
-    const destino = request.nextUrl.clone();
-    destino.pathname = "/resumen";
-    return NextResponse.redirect(destino);
+    return NextResponse.redirect(new URL("/resumen", request.url));
   }
 
   return response;
