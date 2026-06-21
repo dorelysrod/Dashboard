@@ -1,0 +1,36 @@
+name: "Task"
+description: A concrete unit of implementation work, scoped to be closed by a single PR.
+title: "[Task] "
+labels: ["type:task", "needs-triage"]
+body:
+  - type: input
+    id: parent-story
+    attributes:
+      label: Parent User Story (or Epic, for non-story tasks)
+      description: Issue number (e.g. #34)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done?
+    validations:
+      required: true
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of Done
+      description: What must be true for this task to be considered complete (tests, docs, review)?
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options: ["P0", "P1", "P2", "P3"]
+    validations:
+      required: true
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: Feature Area
+      options: ["Frontend", "Backend", "Infrastructure", "Security", "Design", "Docs", "DevOps", "Agents"]

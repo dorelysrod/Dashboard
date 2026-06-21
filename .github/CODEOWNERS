@@ -1,0 +1,21 @@
+# CODEOWNERS (template) — replace the placeholder teams below with real
+# GitHub usernames/teams once the team is formed. GitHub ignores entries
+# whose owners don't resolve, so this file is inert until then.
+#
+# Format: <path pattern>  <owner(s)>
+
+# Default owners for everything
+*                                @your-org/maintainers
+
+# Security-sensitive areas require security review
+/security/                      @your-org/security
+/.claude/agents/security-*.md   @your-org/security
+/.claude/skills/*-review/        @your-org/security
+
+# CI/CD and deployment pipeline
+/.github/workflows/             @your-org/devops
+/ci/                              @your-org/devops
+
+# Architecture decisions and shared code
+/docs/adr/                       @your-org/architecture
+/shared/                          @your-org/architecture

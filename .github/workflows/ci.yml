@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+jobs:
+  detect-stack:
+    runs-on: ubuntu-latest
+    outputs:
+      has_node: ${{ steps.detect.outputs.has_node }}
+      has_python: ${{ steps.detect.outputs.has_python }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        run: bash ci/detect-stack.sh
+
+  node:
+    needs: detect-stack
+    if: needs.detect-stack.outputs.has_node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm run format:check --if-present
+      - run: npm run typecheck --if-present
+      - run: npm run test:unit --if-present
+      - run: npm run test:integration --if-present
+      - run: npm run build --if-present
+
+  python:
+    needs: detect-stack
+    if: needs.detect-stack.outputs.has_python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install .; fi
+          pip install ruff mypy pytest
+      - run: ruff check .
+      - run: mypy . --ignore-missing-imports
+      - run: pytest -m "not e2e"
+
+  no-stack:
+    needs: detect-stack
+    if: needs.detect-stack.outputs.has_node != 'true' && needs.detect-stack.outputs.has_python != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No application stack detected in /app yet — CI no-ops until Hour 0 bootstrap (see ARCHITECTURE.md)."
