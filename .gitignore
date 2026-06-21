@@ -33,6 +33,11 @@ yarn-error.log*
 pnpm-debug.log*
 *.log
 
+# Datos reales / PII — NUNCA al repo público (GDPR). El mockup lleva nombres
+# de prospectos reales; se conserva solo local. Los datos reales van a Supabase.
+panel-operativo-mockup.html
+*.real.local.*
+
 # SO / editor
 .DS_Store
 *.pem
