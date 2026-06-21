@@ -1,4 +1,6 @@
-/** Barra superior del panel (logo + operadora). */
+import { BotonSalir } from "./BotonSalir";
+
+/** Barra superior del panel (logo + operadora + salir). */
 export function Header() {
   return (
     <header className="appbar">
@@ -9,6 +11,7 @@ export function Header() {
         <div className="me">
           <span>Dorelys</span>
           <div className="av">D</div>
+          <BotonSalir />
         </div>
       </div>
     </header>
