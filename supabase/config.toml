@@ -1,0 +1,13 @@
+# Configuración del proyecto Supabase local (CLI).
+# `supabase db reset` aplica las migraciones de supabase/migrations/ contra la
+# base local para validar el SQL antes de cada PR que toque el esquema.
+project_id = "ai-landing-pro"
+
+[db]
+port = 54322
+major_version = 15
+
+[api]
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]

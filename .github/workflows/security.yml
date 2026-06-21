@@ -11,6 +11,9 @@ on:
 jobs:
   secret-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # gitleaks-action lee los commits del PR vía API
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +45,11 @@ jobs:
 
   codeql:
     runs-on: ubuntu-latest
+    # No bloqueante: el upload de SARIF de code scanning requiere GitHub Advanced
+    # Security, que en repos PRIVADOS es de pago y aquí no está habilitado. El
+    # análisis corre igual; para alertas reales, habilitar GHAS o hacer público
+    # el repo y quitar este continue-on-error.
+    continue-on-error: true
     permissions:
       actions: read
       contents: read
