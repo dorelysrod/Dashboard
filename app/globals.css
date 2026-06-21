@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — tema CLARO únicamente (CLAUDE.md §1, panel-operativo-mockup.html).
+ * Única fuente de los colores de marca; Tailwind los referencia en tailwind.config.ts.
+ * No hay variante oscura: el panel es claro por diseño.
+ */
+:root {
+  --bg: #f6f5fb;
+  --card: #ffffff;
+  --ink: #23223a;
+  --violet: #6c5ce7;
+  --pink: #ff5c8a;
+  --mint: #11b886;
+  --amber: #e5972b;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-inter), system-ui, sans-serif;
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-space-grotesk), var(--font-inter), sans-serif;
+    line-height: 1.2;
+  }
+}
