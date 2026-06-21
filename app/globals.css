@@ -723,3 +723,53 @@ td {
   text-align: center;
   font-weight: 600;
 }
+
+/* login */
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.auth-card {
+  width: min(360px, 100%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auth-card .logo {
+  font-size: 1.2rem;
+  margin-bottom: 2px;
+}
+.auth-input {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-family: var(--body);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.auth-input:focus {
+  outline: none;
+  border-color: var(--violet);
+}
+.auth-error {
+  color: var(--pink);
+  font-size: 0.82rem;
+  margin: 0 0 6px;
+}
+.btn-salir {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 9px;
+  padding: 5px 10px;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
