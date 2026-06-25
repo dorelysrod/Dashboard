@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { EtapaLead } from "@/lib/types/db";
+import type { EtapaLead, TierLead } from "@/lib/types/db";
+import type { Prospecto } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
 import { FX, PAQUETE_BASE_MXN } from "@/lib/format";
@@ -156,6 +157,52 @@ export async function guardarCotizacion(
       });
 
   if (error) return { ok: false, error: "No se pudo guardar la cotización." };
+
+  revalidatePath("/", "layout");
+  return { ok: true, error: null };
+}
+
+/** Extrae el tier (A/B/C) de la señal del prospecto, p.ej. "Tier B · …". */
+function tierDeSenal(senal: string): TierLead | null {
+  const m = senal.match(/Tier\s+([ABC])/i);
+  return m ? (m[1].toUpperCase() as TierLead) : null;
+}
+
+/**
+ * Crea un lead en etapa `nuevo` a partir de un prospecto de Buscar (la puerta de
+ * entrada del recorrido lead→cliente). Anti-duplicado por nombre de negocio.
+ */
+export async function crearLeadDesdeProspecto(
+  p: Prospecto,
+): Promise<ResultadoAccion> {
+  if (!supabaseConfigurado()) {
+    return { ok: false, error: "Supabase no está configurado: la acción no se puede persistir." };
+  }
+  if (!p?.nombre?.trim()) {
+    return { ok: false, error: "El prospecto no tiene nombre." };
+  }
+
+  const supabase = await crearClienteServidor();
+
+  const { data: existe } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("negocio", p.nombre)
+    .maybeSingle();
+  if (existe) {
+    return { ok: false, error: "Ese negocio ya está en tu pipeline." };
+  }
+
+  const { error } = await supabase.from("leads").insert({
+    negocio: p.nombre,
+    ciudad: p.meta || null,
+    rubro: "Medicina estética",
+    rating: p.rating,
+    resenas: p.resenas,
+    tier: tierDeSenal(p.senal),
+    etapa: "nuevo",
+  });
+  if (error) return { ok: false, error: "No se pudo crear el lead." };
 
   revalidatePath("/", "layout");
   return { ok: true, error: null };
