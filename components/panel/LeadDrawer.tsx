@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { Lead } from "@/lib/types/dominio";
+import type { EtapaLead } from "@/lib/types/db";
+import { avanzarEtapa } from "@/lib/data/acciones";
 import { aEur, etiquetaScore, fE, fM, PAQUETE_BASE_MXN } from "@/lib/format";
 import { useLeadDrawer } from "./drawer-context";
 
@@ -26,13 +28,27 @@ export function LeadDrawer() {
   const { lead, cerrar } = useLeadDrawer();
   const [ultimo, setUltimo] = useState<Lead | null>(null);
   const [tab, setTab] = useState(0);
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  const [pendiente, iniciarTransicion] = useTransition();
 
   useEffect(() => {
     if (lead) {
       setUltimo(lead);
       setTab(0);
+      setErrorAccion(null);
     }
   }, [lead]);
+
+  /** Cambia la etapa del lead vía Server Action; al lograrlo cierra el drawer
+   *  (la lista re-renderiza con el dato fresco que devuelve revalidatePath). */
+  function cambiarEtapa(id: string, etapa: EtapaLead) {
+    setErrorAccion(null);
+    iniciarTransicion(async () => {
+      const r = await avanzarEtapa(id, etapa);
+      if (r.ok) cerrar();
+      else setErrorAccion(r.error);
+    });
+  }
 
   const abierto = lead !== null;
   const data = lead ?? ultimo;
@@ -135,14 +151,19 @@ export function LeadDrawer() {
                 <div>
                   <div className="email">{data.correo}</div>
                   <div className="dact">
-                    <button className="btn-g btn" type="button">
+                    <button
+                      className="btn-g btn"
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => cambiarEtapa(data.id, "enviado")}
+                    >
                       Aprobar y enviar
                     </button>
-                    <button className="btn" type="button">
+                    <button className="btn" type="button" disabled={pendiente}>
                       Reescribir con Claude
                     </button>
                   </div>
-                  <div className="note">Acciones de envío: se cablean en M3.</div>
+                  {errorAccion && <div className="note">{errorAccion}</div>}
                 </div>
               )}
 
@@ -177,14 +198,30 @@ export function LeadDrawer() {
                     <div className="vv">{accionSugerida(data)}</div>
                   </div>
                   <div className="dact">
-                    <button className="btn-g btn" type="button">
-                      Aceptar y generar factura
+                    <button
+                      className="btn-g btn"
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => cambiarEtapa(data.id, "aceptado")}
+                    >
+                      Aceptar
                     </button>
-                    <button className="btn" type="button">
+                    <button className="btn" type="button" disabled={pendiente}>
                       Seguimiento
                     </button>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => cambiarEtapa(data.id, "descartado")}
+                    >
+                      Descartar
+                    </button>
                   </div>
-                  <div className="note">Acciones: se cablean en M3.</div>
+                  {errorAccion && <div className="note">{errorAccion}</div>}
+                  <div className="note">
+                    La factura y el intake se generan en un milestone posterior.
+                  </div>
                 </div>
               )}
             </div>
