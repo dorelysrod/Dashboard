@@ -73,3 +73,5 @@ El usuario corre **sesiones de Claude Code en paralelo**. Antes de cualquier com
 - Stagear **solo los archivos de tu tarea** (`git add <path>`, nunca `git add -A` / `git add .`).
 - No `git reset --hard` / `git checkout -- <file>` / `git stash` amplio sin confirmar autoría.
 - Commitear/pushear solo cuando el usuario lo pida.
+- **Nunca** incluir atribución de IA en PRs ni commits: ni `🤖 Generated with Claude Code`,
+  ni `Co-Authored-By: Claude`, ni firmas equivalentes. Títulos y cuerpos limpios, sin esa marca.
