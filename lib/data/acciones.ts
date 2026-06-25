@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { EtapaLead } from "@/lib/types/db";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
+import { FX, PAQUETE_BASE_MXN } from "@/lib/format";
 
 /**
  * Mutaciones de dominio del pipeline (M3). Server Actions: corren solo en el
@@ -52,6 +53,110 @@ export async function avanzarEtapa(
   if (error) return { ok: false, error: "No se pudo actualizar la etapa." };
 
   // Single-user: refrescamos todas las vistas del panel que listan leads.
+  revalidatePath("/", "layout");
+  return { ok: true, error: null };
+}
+
+/** Convierte un textarea (una línea por elemento) en text[] sin vacíos. */
+function lineasAArray(texto: string): string[] {
+  return texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+export interface DatosInspeccion {
+  tecnologia: string;
+  hosting: string;
+  mejoras: string[];
+  recomendacion: string;
+}
+
+/**
+ * Upsert de la inspección del lead: actualiza la más reciente o crea una si no
+ * existe (varios leads del seed no traen inspección). Edita desde el drawer (M3).
+ */
+export async function guardarInspeccion(
+  leadId: string,
+  datos: DatosInspeccion,
+): Promise<ResultadoAccion> {
+  if (!supabaseConfigurado()) {
+    return { ok: false, error: "Supabase no está configurado: la acción no se puede persistir." };
+  }
+
+  const supabase = await crearClienteServidor();
+  const campos = {
+    tecnologia: datos.tecnologia || null,
+    hosting: datos.hosting || null,
+    mejoras: datos.mejoras,
+    recomendacion: datos.recomendacion || null,
+  };
+
+  const { data: existente } = await supabase
+    .from("inspecciones")
+    .select("id")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = existente
+    ? await supabase.from("inspecciones").update(campos).eq("id", existente.id)
+    : await supabase.from("inspecciones").insert({ lead_id: leadId, ...campos });
+
+  if (error) return { ok: false, error: "No se pudo guardar la inspección." };
+
+  revalidatePath("/", "layout");
+  return { ok: true, error: null };
+}
+
+export interface DatosCotizacion {
+  modulos: string[];
+  totalMxn: number;
+}
+
+/**
+ * Upsert de la cotización del lead: actualiza la más reciente o crea una si no
+ * existe. total_eur se deriva del tipo de cambio (FX, §7). Edita desde el drawer.
+ */
+export async function guardarCotizacion(
+  leadId: string,
+  datos: DatosCotizacion,
+): Promise<ResultadoAccion> {
+  if (!supabaseConfigurado()) {
+    return { ok: false, error: "Supabase no está configurado: la acción no se puede persistir." };
+  }
+  if (!Number.isFinite(datos.totalMxn) || datos.totalMxn < 0) {
+    return { ok: false, error: "El total en MXN debe ser un número válido." };
+  }
+
+  const supabase = await crearClienteServidor();
+  const totalEur = Math.round(datos.totalMxn * FX);
+  const camposComunes = {
+    modulos: datos.modulos,
+    total_mxn: datos.totalMxn,
+    total_eur: totalEur,
+  };
+
+  const { data: existente } = await supabase
+    .from("cotizaciones")
+    .select("id")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = existente
+    ? await supabase.from("cotizaciones").update(camposComunes).eq("id", existente.id)
+    : await supabase.from("cotizaciones").insert({
+        lead_id: leadId,
+        base_mxn: PAQUETE_BASE_MXN,
+        estado: "borrador",
+        ...camposComunes,
+      });
+
+  if (error) return { ok: false, error: "No se pudo guardar la cotización." };
+
   revalidatePath("/", "layout");
   return { ok: true, error: null };
 }
