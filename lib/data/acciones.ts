@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { EtapaLead, TierLead } from "@/lib/types/db";
+import type { EstadoFactura, EtapaLead, TierLead } from "@/lib/types/db";
 import type { Prospecto } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
@@ -244,6 +244,30 @@ export async function crearLeadDesdeProspecto(
     etapa: "nuevo",
   });
   if (error) return { ok: false, error: "No se pudo crear el lead." };
+
+  revalidatePath("/", "layout");
+  return { ok: true, error: null };
+}
+
+/** Cambia el estado de pago de una factura (seguimiento de cobros, vista Facturación). */
+export async function cambiarEstadoFactura(
+  facturaId: string,
+  estado: EstadoFactura,
+): Promise<ResultadoAccion> {
+  if (estado !== "pagada" && estado !== "pendiente") {
+    return { ok: false, error: "Estado de factura no válido." };
+  }
+  if (!supabaseConfigurado()) {
+    return { ok: false, error: "Supabase no está configurado: la acción no se puede persistir." };
+  }
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase
+    .from("facturas")
+    .update({ estado })
+    .eq("id", facturaId);
+
+  if (error) return { ok: false, error: "No se pudo actualizar la factura." };
 
   revalidatePath("/", "layout");
   return { ok: true, error: null };
