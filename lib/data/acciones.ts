@@ -162,6 +162,47 @@ export async function guardarCotizacion(
   return { ok: true, error: null };
 }
 
+export interface DatosCorreo {
+  asunto: string;
+  cuerpo: string;
+}
+
+/**
+ * Upsert del correo del lead: actualiza el más reciente o crea uno. Lo usa el
+ * flujo de IA ("Reescribir con Claude") tras pegar y parsear la respuesta.
+ */
+export async function guardarCorreo(
+  leadId: string,
+  datos: DatosCorreo,
+): Promise<ResultadoAccion> {
+  if (!supabaseConfigurado()) {
+    return { ok: false, error: "Supabase no está configurado: la acción no se puede persistir." };
+  }
+
+  const supabase = await crearClienteServidor();
+  const campos = {
+    asunto: datos.asunto || null,
+    cuerpo: datos.cuerpo || null,
+  };
+
+  const { data: existente } = await supabase
+    .from("correos")
+    .select("id")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = existente
+    ? await supabase.from("correos").update(campos).eq("id", existente.id)
+    : await supabase.from("correos").insert({ lead_id: leadId, ...campos });
+
+  if (error) return { ok: false, error: "No se pudo guardar el correo." };
+
+  revalidatePath("/", "layout");
+  return { ok: true, error: null };
+}
+
 /** Extrae el tier (A/B/C) de la señal del prospecto, p.ej. "Tier B · …". */
 function tierDeSenal(senal: string): TierLead | null {
   const m = senal.match(/Tier\s+([ABC])/i);

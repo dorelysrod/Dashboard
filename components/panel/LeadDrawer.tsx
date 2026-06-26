@@ -3,13 +3,17 @@
 import { useEffect, useState, useTransition } from "react";
 import type { Lead } from "@/lib/types/dominio";
 import type { EtapaLead } from "@/lib/types/db";
+import type { SolicitudIA } from "@/lib/ai/tipos";
 import {
   avanzarEtapa,
+  guardarCorreo,
   guardarCotizacion,
   guardarInspeccion,
 } from "@/lib/data/acciones";
+import { parseCorreo, parseCotizacion, parseInspeccion } from "@/lib/ai/parsers";
 import { aEur, etiquetaScore, fE, fM, PAQUETE_BASE_MXN } from "@/lib/format";
 import { useLeadDrawer } from "./drawer-context";
+import { PanelIA } from "./PanelIA";
 
 const DTABS = ["Inspección", "Cotización", "Correo", "Seguimiento"] as const;
 
@@ -51,6 +55,10 @@ export function LeadDrawer() {
   const [parche, setParche] = useState<Partial<Lead>>({});
   const [editInsp, setEditInsp] = useState(false);
   const [editCot, setEditCot] = useState(false);
+  // Panel de IA manual abierto (por tarea), o null.
+  const [panelIA, setPanelIA] = useState<
+    null | "inspeccion" | "cotizacion" | "correo"
+  >(null);
   const [formInsp, setFormInsp] = useState<FormInsp>({
     tecnologia: "",
     hosting: "",
@@ -67,8 +75,64 @@ export function LeadDrawer() {
       setParche({});
       setEditInsp(false);
       setEditCot(false);
+      setPanelIA(null);
     }
   }, [lead]);
+
+  // ── Contextos para el harness IA, derivados del lead mostrado ──────────────
+  const mejorasArr = (m: string) => (m ? m.split(" · ").filter(Boolean) : []);
+  function solicitudIA(tarea: "inspeccion" | "cotizacion" | "correo"): SolicitudIA {
+    const v = vista!;
+    if (tarea === "inspeccion")
+      return { tarea, contexto: { negocio: v.nombre, ciudad: v.meta } };
+    if (tarea === "cotizacion")
+      return {
+        tarea,
+        contexto: { negocio: v.nombre, mejoras: mejorasArr(v.mejoras), modulosSugeridos: v.modulos },
+      };
+    return {
+      tarea,
+      contexto: { negocio: v.nombre, mejoras: mejorasArr(v.mejoras), recomendacion: v.recomendacion },
+    };
+  }
+
+  /** Respuesta de IA para inspección → precarga el formulario de edición. */
+  function aplicarInspeccionIA(raw: string) {
+    const d = parseInspeccion(raw);
+    setFormInsp({
+      tecnologia: d.tecnologia,
+      hosting: d.hosting,
+      mejoras: d.mejoras.join("\n"),
+      recomendacion: d.recomendacion,
+    });
+    setPanelIA(null);
+    setEditInsp(true);
+  }
+
+  /** Respuesta de IA para cotización → precarga el formulario de edición. */
+  function aplicarCotizacionIA(raw: string) {
+    const d = parseCotizacion(raw);
+    setFormCot({
+      total: d.totalMxn != null ? String(d.totalMxn) : "",
+      modulos: d.modulos.join("\n"),
+    });
+    setPanelIA(null);
+    setEditCot(true);
+  }
+
+  /** Respuesta de IA para correo → guarda y refleja en el parche optimista. */
+  function aplicarCorreoIA(raw: string) {
+    if (!vista) return;
+    const d = parseCorreo(raw);
+    setErrorAccion(null);
+    iniciarTransicion(async () => {
+      const r = await guardarCorreo(vista.id, d);
+      if (r.ok) {
+        setParche((p) => ({ ...p, correo: `Asunto: ${d.asunto}\n\n${d.cuerpo}` }));
+        setPanelIA(null);
+      } else setErrorAccion(r.error);
+    });
+  }
 
   const abierto = lead !== null;
   const base = lead ?? ultimo;
@@ -212,7 +276,21 @@ export function LeadDrawer() {
                     >
                       Editar inspección
                     </button>
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => setPanelIA("inspeccion")}
+                    >
+                      ✨ Generar con Claude
+                    </button>
                   </div>
+                  {panelIA === "inspeccion" && (
+                    <PanelIA
+                      solicitud={solicitudIA("inspeccion")}
+                      onAplicar={aplicarInspeccionIA}
+                      onCerrar={() => setPanelIA(null)}
+                    />
+                  )}
                   {errorAccion && <div className="note">{errorAccion}</div>}
                 </div>
               )}
@@ -334,7 +412,21 @@ export function LeadDrawer() {
                     >
                       Editar cotización
                     </button>
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => setPanelIA("cotizacion")}
+                    >
+                      ✨ Generar con Claude
+                    </button>
                   </div>
+                  {panelIA === "cotizacion" && (
+                    <PanelIA
+                      solicitud={solicitudIA("cotizacion")}
+                      onAplicar={aplicarCotizacionIA}
+                      onCerrar={() => setPanelIA(null)}
+                    />
+                  )}
                   {errorAccion && <div className="note">{errorAccion}</div>}
                 </div>
               )}
@@ -397,7 +489,7 @@ export function LeadDrawer() {
               {/* Correo */}
               {tab === 2 && (
                 <div>
-                  <div className="email">{vista.correo}</div>
+                  <div className="email">{vista.correo || "—"}</div>
                   <div className="dact">
                     <button
                       className="btn-g btn"
@@ -407,10 +499,22 @@ export function LeadDrawer() {
                     >
                       Aprobar y enviar
                     </button>
-                    <button className="btn" type="button" disabled={pendiente}>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => setPanelIA("correo")}
+                    >
                       Reescribir con Claude
                     </button>
                   </div>
+                  {panelIA === "correo" && (
+                    <PanelIA
+                      solicitud={solicitudIA("correo")}
+                      onAplicar={aplicarCorreoIA}
+                      onCerrar={() => setPanelIA(null)}
+                    />
+                  )}
                   {errorAccion && <div className="note">{errorAccion}</div>}
                 </div>
               )}
