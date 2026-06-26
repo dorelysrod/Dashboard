@@ -1,5 +1,24 @@
-/** Contenido estático del contrato visual; cobra vida con el motor Fiscal (M5). */
-export default function FiscalPage() {
+import { obtenerFiscal } from "@/lib/data/fiscal";
+import { fE } from "@/lib/format";
+
+const nMxn = new Intl.NumberFormat("es-ES");
+const nTc = new Intl.NumberFormat("es-ES", {
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+});
+
+/** Fiscal y contabilidad: BTW trimestral + inkomstenbelasting anual, desde Supabase. */
+export default async function FiscalPage() {
+  const f = await obtenerFiscal();
+  const pctHoras = Math.min(
+    100,
+    Math.round((f.horasRegistradas / f.horasObjetivo) * 100),
+  );
+  const btwTexto =
+    f.btwResultadoEur < 0
+      ? `a recuperar ${fE.format(-f.btwResultadoEur)}`
+      : `a pagar ${fE.format(f.btwResultadoEur)}`;
+
   return (
     <section className="view">
       <h2 className="vh">Fiscal y contabilidad</h2>
@@ -18,23 +37,23 @@ export default function FiscalPage() {
       <div className="kpis" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
         <div className="kpi">
           <div className="k">Ingresos (año)</div>
-          <div className="v">€2,980</div>
+          <div className="v">{fE.format(f.ingresosEur)}</div>
           <div className="s">ya en euros</div>
         </div>
         <div className="kpi">
           <div className="k">Gastos</div>
-          <div className="v">€420</div>
+          <div className="v">{fE.format(f.gastosEur)}</div>
           <div className="s">deducibles</div>
         </div>
         <div className="kpi win">
           <div className="k">Ganancia</div>
-          <div className="v">€2,560</div>
+          <div className="v">{fE.format(f.gananciaEur)}</div>
           <div className="s">base de tu renta</div>
         </div>
         <div className="kpi">
           <div className="k">Apartar</div>
           <div className="v" style={{ color: "var(--amber)" }}>
-            €1,024
+            {fE.format(f.apartarEur)}
           </div>
           <div className="s">~40% (con margen)</div>
         </div>
@@ -47,19 +66,19 @@ export default function FiscalPage() {
           </h3>
           <div className="pstat">
             <span>Omzet México (servicios)</span>
-            <b className="mono">€2,980</b>
+            <b className="mono">{fE.format(f.ingresosEur)}</b>
           </div>
           <div className="pstat">
             <span>BTW cobrado</span>
-            <b style={{ color: "var(--mint)" }}>€0</b>
+            <b style={{ color: "var(--mint)" }}>{fE.format(f.btwCobradoEur)}</b>
           </div>
           <div className="pstat">
             <span>BTW de gastos (recuperable)</span>
-            <b className="mono">+€88</b>
+            <b className="mono">+{fE.format(f.btwRecuperableEur)}</b>
           </div>
           <div className="pstat">
             <span>Resultado del trimestre</span>
-            <b style={{ color: "var(--mint)" }}>a recuperar €88</b>
+            <b style={{ color: "var(--mint)" }}>{btwTexto}</b>
           </div>
           <div className="note">
             México no genera BTW a pagar. Presentas la aangifte igual — sobre todo
@@ -74,27 +93,27 @@ export default function FiscalPage() {
           </h3>
           <div className="pstat" style={{ padding: "6px 0" }}>
             <span>Ganancia (winst)</span>
-            <b className="mono">€2,560</b>
+            <b className="mono">{fE.format(f.gananciaEur)}</b>
           </div>
           <div className="pstat" style={{ padding: "6px 0" }}>
             <span>− mkb-winstvrijstelling 12,7%</span>
-            <b className="mono">−€325</b>
+            <b className="mono">−{fE.format(f.mkbVrijstellingEur)}</b>
           </div>
           <div className="pstat" style={{ padding: "6px 0" }}>
             <span>Base gravable</span>
-            <b className="mono">€2,235</b>
+            <b className="mono">{fE.format(f.baseGravableEur)}</b>
           </div>
           <div className="pstat" style={{ padding: "6px 0" }}>
             <span>IB estimado (tipo ~37%)</span>
-            <b className="mono">€827</b>
+            <b className="mono">{fE.format(f.ibEur)}</b>
           </div>
           <div className="pstat" style={{ padding: "6px 0" }}>
             <span>Zvw 4,85%</span>
-            <b className="mono">€124</b>
+            <b className="mono">{fE.format(f.zvwEur)}</b>
           </div>
           <div className="pstat" style={{ padding: "6px 0" }}>
             <span>A apartar</span>
-            <b style={{ color: "var(--amber)" }}>≈ €951</b>
+            <b style={{ color: "var(--amber)" }}>≈ {fE.format(f.apartarIbEur)}</b>
           </div>
           <div className="note">
             Aquí <b>declaras tu trabajo</b>, una vez al año. Ajusta el tipo a tu
@@ -105,40 +124,32 @@ export default function FiscalPage() {
 
       <div className="panel" style={{ marginTop: 16 }}>
         <h3>Tus facturas · conversión MXN → €</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Factura</th>
-              <th>MXN</th>
-              <th>Tipo</th>
-              <th>EUR</th>
-              <th>BTW</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>2026-001 · Dra. Camila Reyes</td>
-              <td className="mono">14.900</td>
-              <td className="mono">0,0500</td>
-              <td className="mono">€745</td>
-              <td>—</td>
-            </tr>
-            <tr>
-              <td>2026-002 · Dr. Mateo Ríos</td>
-              <td className="mono">18.150</td>
-              <td className="mono">0,0497</td>
-              <td className="mono">€902</td>
-              <td>—</td>
-            </tr>
-            <tr>
-              <td>2026-003 · Clínica Lumina</td>
-              <td className="mono">14.900</td>
-              <td className="mono">0,0500</td>
-              <td className="mono">€745</td>
-              <td>—</td>
-            </tr>
-          </tbody>
-        </table>
+        {f.facturas.length === 0 ? (
+          <div className="note">Aún no hay facturas que convertir.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Factura</th>
+                <th>MXN</th>
+                <th>Tipo</th>
+                <th>EUR</th>
+                <th>BTW</th>
+              </tr>
+            </thead>
+            <tbody>
+              {f.facturas.map((fa) => (
+                <tr key={fa.id}>
+                  <td>{fa.etiqueta}</td>
+                  <td className="mono">{nMxn.format(fa.mxn)}</td>
+                  <td className="mono">{nTc.format(fa.tipoCambio)}</td>
+                  <td className="mono">{fE.format(fa.eur)}</td>
+                  <td>—</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         <div className="note">
           Cada factura se guarda en € al <b>tipo del día</b> (lo conservas como
           prueba). El BTW va en &quot;—&quot; por ser servicio a México.
@@ -152,10 +163,12 @@ export default function FiscalPage() {
           </h3>
           <div className="pstat" style={{ border: "none", paddingBottom: 0 }}>
             <span>Registradas este año</span>
-            <b className="mono">240 / 1.225 h</b>
+            <b className="mono">
+              {nMxn.format(f.horasRegistradas)} / {nMxn.format(f.horasObjetivo)} h
+            </b>
           </div>
           <div className="tbar">
-            <i style={{ width: "19.5%" }} />
+            <i style={{ width: `${pctHoras}%` }} />
           </div>
           <div className="note">
             Para zelfstandigenaftrek/startersaftrek necesitas 1.225 h{" "}
