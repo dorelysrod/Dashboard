@@ -75,7 +75,12 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
     supabase.from("facturas").select("eur, tipo"),
   ]);
 
+  // No degradar KPIs a "0" en silencio: si cualquiera de las queries falla
+  // (RLS, red, columna), se lanza en vez de reportar % abiertas / MRR = 0.
   if (leadsRes.error) throw leadsRes.error;
+  if (correosRes.error) throw correosRes.error;
+  if (clientesRes.error) throw clientesRes.error;
+  if (facturasRes.error) throw facturasRes.error;
 
   const leads = leadsRes.data ?? [];
   const correos = correosRes.data ?? [];
