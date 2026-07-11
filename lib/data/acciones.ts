@@ -229,11 +229,18 @@ export async function crearLeadDesdeProspecto(
 
   const supabase = await crearClienteServidor();
 
-  const { data: existe } = await supabase
+  // .limit(1) evita el error de maybeSingle() cuando ya hay 2+ duplicados
+  // preexistentes (antes se tragaba ese error y creaba OTRO duplicado). El
+  // error del select ya no se descarta.
+  const { data: existe, error: existeError } = await supabase
     .from("leads")
     .select("id")
     .eq("negocio", p.nombre)
+    .limit(1)
     .maybeSingle();
+  if (existeError) {
+    return { ok: false, error: "No se pudo verificar duplicados." };
+  }
   if (existe) {
     return { ok: false, error: "Ese negocio ya está en tu pipeline." };
   }
@@ -247,7 +254,15 @@ export async function crearLeadDesdeProspecto(
     tier: tierDeSenal(p.senal),
     etapa: "nuevo",
   });
-  if (error) return { ok: false, error: "No se pudo crear el lead." };
+  if (error) {
+    // 23505 = unique_violation contra leads_negocio_key: un envío concurrente
+    // ganó la carrera (TOCTOU). La garantía real es el índice único; aquí solo
+    // traducimos a un mensaje claro en vez de "no se pudo crear".
+    if (error.code === "23505") {
+      return { ok: false, error: "Ese negocio ya está en tu pipeline." };
+    }
+    return { ok: false, error: "No se pudo crear el lead." };
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, error: null };
