@@ -3,6 +3,7 @@ import type { Lead } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
 import { aEur } from "@/lib/format";
+import { masReciente } from "./mapeo";
 import { LEADS } from "./seed";
 
 /**
@@ -29,6 +30,13 @@ export interface ResumenKpis {
   pipelineEur: number;
   suscripcionesActivas: number;
   mrrEur: number;
+}
+
+/** Fila `leads` con las cotizaciones anidadas que necesita el cálculo de pipeline. */
+interface LeadResumenRow {
+  etapa: EtapaLead;
+  created_at: string;
+  cotizaciones: { total_eur: number | null; created_at: string }[] | null;
 }
 
 /** Etapas que implican que ya se envió cotización. */
@@ -69,7 +77,12 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
   const supabase = await crearClienteServidor();
 
   const [leadsRes, correosRes, clientesRes, facturasRes] = await Promise.all([
-    supabase.from("leads").select("etapa, valor_eur, created_at"),
+    // pipelineEur se deriva de la cotización más reciente (total_eur), no de
+    // leads.valor_eur: esa columna la llena solo el seed y guardarCotizacion
+    // nunca la actualiza (quedaría stale). Fuente única: `cotizaciones`.
+    supabase
+      .from("leads")
+      .select("etapa, created_at, cotizaciones ( total_eur, created_at )"),
     supabase.from("correos").select("aperturas, enviado_at"),
     supabase.from("clientes").select("id, suscripcion_activa"),
     supabase.from("facturas").select("eur, tipo"),
@@ -82,7 +95,7 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
   if (clientesRes.error) throw clientesRes.error;
   if (facturasRes.error) throw facturasRes.error;
 
-  const leads = leadsRes.data ?? [];
+  const leads = (leadsRes.data ?? []) as LeadResumenRow[];
   const correos = correosRes.data ?? [];
   const clientes = clientesRes.data ?? [];
   const facturas = facturasRes.data ?? [];
@@ -106,7 +119,7 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
     aceptadas: leads.filter((l) => ETAPAS_ACEPTADAS.includes(l.etapa)).length,
     pipelineEur: leads
       .filter((l) => ETAPAS_ABIERTAS.includes(l.etapa))
-      .reduce((s, l) => s + (l.valor_eur ?? 0), 0),
+      .reduce((s, l) => s + (masReciente(l.cotizaciones)?.total_eur ?? 0), 0),
     suscripcionesActivas,
     mrrEur,
   };

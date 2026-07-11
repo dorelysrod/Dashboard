@@ -32,7 +32,7 @@ export function mapearEtapa(etapa: EtapaLead): EstadoEtapa {
 }
 
 /** Devuelve el elemento más reciente por `created_at` (o undefined si vacío). */
-function masReciente<T extends { created_at: string }>(
+export function masReciente<T extends { created_at: string }>(
   filas: T[] | null | undefined,
 ): T | undefined {
   if (!filas || filas.length === 0) return undefined;
