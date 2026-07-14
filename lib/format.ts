@@ -1,7 +1,9 @@
 /**
  * Formateadores y reglas de presentación portadas del contrato visual.
- * El tipo de cambio y el precio base son placeholders de la tabla `config`
- * (§7 del spec); en M3/M5 se leerán de Supabase en vez de constantes.
+ * El tipo de cambio y el precio base autoritativos viven en la tabla `config`
+ * (§7) y se leen con lib/config.ts (leerFx/leerPaqueteBaseMxn) en el camino que
+ * persiste. Estas constantes son el *fallback* de modo seed y la vista previa
+ * síncrona del cliente (aEur), que no puede leer config con await.
  */
 
 export const fE = new Intl.NumberFormat("es-ES", {
@@ -16,10 +18,10 @@ export const fM = new Intl.NumberFormat("es-MX", {
   maximumFractionDigits: 0,
 });
 
-/** config.FX_MXN_EUR (placeholder fase 1). */
+/** Fallback de config.FX_MXN_EUR (modo seed / vista previa cliente). */
 export const FX = 0.05;
 
-/** config.PRECIOS.base_mxn (placeholder fase 1). */
+/** Fallback de config.PRECIOS.base_mxn (modo seed / vista previa cliente). */
 export const PAQUETE_BASE_MXN = 14900;
 
 export const aEur = (mxn: number): number => Math.round(mxn * FX);

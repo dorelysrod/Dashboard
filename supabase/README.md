@@ -11,6 +11,30 @@ Dato único del panel (Postgres + Auth + RLS). Spec §4.
   `intake`). Migra `config.valor` a `jsonb`.
 - `20260621020000_rls.sql` — M1: RLS habilitada + política `operador_full`
   (single-user) en todas las tablas.
+- `20260711000000_leads_negocio_unique.sql` — índice único `leads(negocio)`
+  (anti-duplicado a nivel de BD).
+
+## ⚠️ Deshabilitar signups (paso OBLIGATORIO de setup)
+
+La política `operador_full` da acceso **total** (`using(true) with check(true)`) a
+**cualquier** usuario `authenticated`. El modelo es single-user: el único usuario
+que debe existir es tú (el operador). Como la `NEXT_PUBLIC_SUPABASE_URL` y la
+`anon key` están expuestas al navegador, si los signups quedan **habilitados**
+(el default de Supabase) cualquiera que se registre contra tu proyecto obtiene
+lectura/escritura de todo el negocio, incluidos los datos personales de los leads
+(**riesgo GDPR**).
+
+En el panel de Supabase → **Authentication → Sign In / Providers** (o
+**Auth → Settings**):
+
+1. **Desactiva "Allow new users to sign up"** (Enable signup = off).
+2. Confirma que solo existe tu cuenta de operador en **Authentication → Users**;
+   créala manualmente (invite) si hace falta antes de desactivar el signup.
+3. Opcional (defensa en profundidad): restringir la política a tu `auth.uid()`
+   concreto en vez de `to authenticated` genérico.
+
+Verifícalo tras cada (re)provisión del proyecto; no es parte de las migraciones
+(es config del proyecto hosted). Ver `security/checklist.md`.
 
 ## Validar el SQL
 

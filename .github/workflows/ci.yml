@@ -31,7 +31,9 @@ jobs:
       - run: npm run lint --if-present
       - run: npm run format:check --if-present
       - run: npm run typecheck --if-present
-      - run: npm run test:unit --if-present
+      # Gate real: el script test:unit existe, así que CI falla si un test falla
+      # (antes --if-present dejaba CI verde sin ejecutar ni un test).
+      - run: npm run test:unit
       - run: npm run test:integration --if-present
       - run: npm run build --if-present
 

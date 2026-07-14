@@ -1,0 +1,12 @@
+-- Anti-duplicado de leads a nivel de BD (T-005).
+-- El guard aplicativo de crearLeadDesdeProspecto (select .maybeSingle por
+-- `negocio`) no basta: hay TOCTOU entre dos envíos concurrentes y el propio
+-- select se rompe si YA existen filas duplicadas. Un índice único lo garantiza
+-- y deja que el insert falle con 23505 (que la Server Action traduce a un
+-- mensaje claro), en vez de crear otro duplicado.
+--
+-- Si esta migración falla por duplicados PREEXISTENTES, deduplica primero
+-- (conserva la fila más antigua por negocio) y reintenta:
+--   delete from leads a using leads b
+--   where a.ctid > b.ctid and a.negocio = b.negocio;
+create unique index if not exists leads_negocio_key on leads (negocio);

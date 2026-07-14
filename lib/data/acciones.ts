@@ -5,7 +5,7 @@ import type { EstadoFactura, EtapaLead, TierLead } from "@/lib/types/db";
 import type { Prospecto } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
-import { FX, PAQUETE_BASE_MXN } from "@/lib/format";
+import { leerFx, leerPaqueteBaseMxn } from "@/lib/config";
 
 /**
  * Mutaciones de dominio del pipeline (M3). Server Actions: corren solo en el
@@ -118,7 +118,8 @@ export interface DatosCotizacion {
 
 /**
  * Upsert de la cotización del lead: actualiza la más reciente o crea una si no
- * existe. total_eur se deriva del tipo de cambio (FX, §7). Edita desde el drawer.
+ * existe. total_eur se deriva del tipo de cambio editable (config.FX_MXN_EUR,
+ * §7). Edita desde el drawer.
  */
 export async function guardarCotizacion(
   leadId: string,
@@ -132,7 +133,10 @@ export async function guardarCotizacion(
   }
 
   const supabase = await crearClienteServidor();
-  const totalEur = Math.round(datos.totalMxn * FX);
+  // Tipo de cambio y precio base desde la tabla `config` editable (fallback a
+  // constante en modo seed) — editar FX_MXN_EUR cambia lo que se persiste.
+  const fx = await leerFx();
+  const totalEur = Math.round(datos.totalMxn * fx);
   const camposComunes = {
     modulos: datos.modulos,
     total_mxn: datos.totalMxn,
@@ -151,7 +155,7 @@ export async function guardarCotizacion(
     ? await supabase.from("cotizaciones").update(camposComunes).eq("id", existente.id)
     : await supabase.from("cotizaciones").insert({
         lead_id: leadId,
-        base_mxn: PAQUETE_BASE_MXN,
+        base_mxn: await leerPaqueteBaseMxn(),
         estado: "borrador",
         ...camposComunes,
       });
@@ -225,11 +229,18 @@ export async function crearLeadDesdeProspecto(
 
   const supabase = await crearClienteServidor();
 
-  const { data: existe } = await supabase
+  // .limit(1) evita el error de maybeSingle() cuando ya hay 2+ duplicados
+  // preexistentes (antes se tragaba ese error y creaba OTRO duplicado). El
+  // error del select ya no se descarta.
+  const { data: existe, error: existeError } = await supabase
     .from("leads")
     .select("id")
     .eq("negocio", p.nombre)
+    .limit(1)
     .maybeSingle();
+  if (existeError) {
+    return { ok: false, error: "No se pudo verificar duplicados." };
+  }
   if (existe) {
     return { ok: false, error: "Ese negocio ya está en tu pipeline." };
   }
@@ -243,7 +254,15 @@ export async function crearLeadDesdeProspecto(
     tier: tierDeSenal(p.senal),
     etapa: "nuevo",
   });
-  if (error) return { ok: false, error: "No se pudo crear el lead." };
+  if (error) {
+    // 23505 = unique_violation contra leads_negocio_key: un envío concurrente
+    // ganó la carrera (TOCTOU). La garantía real es el índice único; aquí solo
+    // traducimos a un mensaje claro en vez de "no se pudo crear".
+    if (error.code === "23505") {
+      return { ok: false, error: "Ese negocio ya está en tu pipeline." };
+    }
+    return { ok: false, error: "No se pudo crear el lead." };
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, error: null };

@@ -3,6 +3,7 @@ import type { Lead } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
 import { aEur } from "@/lib/format";
+import { masReciente } from "./mapeo";
 import { LEADS } from "./seed";
 
 /**
@@ -31,6 +32,13 @@ export interface ResumenKpis {
   mrrEur: number;
 }
 
+/** Fila `leads` con las cotizaciones anidadas que necesita el cálculo de pipeline. */
+interface LeadResumenRow {
+  etapa: EtapaLead;
+  created_at: string;
+  cotizaciones: { total_eur: number | null; created_at: string }[] | null;
+}
+
 /** Etapas que implican que ya se envió cotización. */
 const ETAPAS_COTIZADAS: EtapaLead[] = [
   "enviado",
@@ -45,7 +53,9 @@ const ETAPAS_ABIERTAS: EtapaLead[] = ["enviado", "abierto"];
 function resumenDesdeSeed(): ResumenKpis {
   const cotizadas = LEADS.filter((l) => l.mxn > 0);
   const abiertos = LEADS.filter((l) => l.aperturas > 0).length;
-  const enviados = LEADS.filter((l) => l.aperturas >= 0).length;
+  // "Enviado" = tiene correo redactado; antes `aperturas >= 0` era siempre true
+  // y contaba TODOS los leads, distorsionando pctAbiertas en modo seed.
+  const enviados = LEADS.filter((l) => l.correo.trim() !== "").length;
   const aceptadas = LEADS.filter((l) => l.etapa.css === "st-dev" || l.etapa.css === "st-ac").length;
   const pipelineEur = LEADS.filter((l) => l.etapa.css === "st-env" || l.etapa.css === "st-ab")
     .reduce((s, l) => s + aEur(l.mxn), 0);
@@ -69,26 +79,45 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
   const supabase = await crearClienteServidor();
 
   const [leadsRes, correosRes, clientesRes, facturasRes] = await Promise.all([
-    supabase.from("leads").select("etapa, valor_eur, created_at"),
+    // pipelineEur se deriva de la cotización más reciente (total_eur), no de
+    // leads.valor_eur: esa columna la llena solo el seed y guardarCotizacion
+    // nunca la actualiza (quedaría stale). Fuente única: `cotizaciones`.
+    supabase
+      .from("leads")
+      .select("etapa, created_at, cotizaciones ( total_eur, created_at )"),
     supabase.from("correos").select("aperturas, enviado_at"),
     supabase.from("clientes").select("id, suscripcion_activa"),
-    supabase.from("facturas").select("eur, tipo"),
+    supabase.from("facturas").select("eur, tipo, fecha, created_at"),
   ]);
 
+  // No degradar KPIs a "0" en silencio: si cualquiera de las queries falla
+  // (RLS, red, columna), se lanza en vez de reportar % abiertas / MRR = 0.
   if (leadsRes.error) throw leadsRes.error;
+  if (correosRes.error) throw correosRes.error;
+  if (clientesRes.error) throw clientesRes.error;
+  if (facturasRes.error) throw facturasRes.error;
 
-  const leads = leadsRes.data ?? [];
+  const leads = (leadsRes.data ?? []) as LeadResumenRow[];
   const correos = correosRes.data ?? [];
   const clientes = clientesRes.data ?? [];
   const facturas = facturasRes.data ?? [];
 
-  const hace7dias = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const ahora = new Date();
+  const hace7dias = new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Primer día del mes corriente (YYYY-MM-DD) para acotar el MRR al periodo.
+  const inicioMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-01`;
 
   const enviados = correos.filter((c) => c.enviado_at).length;
   const abiertos = correos.filter((c) => c.enviado_at && c.aperturas > 0).length;
   const suscripcionesActivas = clientes.filter((c) => c.suscripcion_activa).length;
+  // MRR = suscripciones facturadas ESTE mes, no el acumulado histórico (que se
+  // inflaba mes a mes). Se ancla en `fecha` (fallback created_at) del periodo.
   const mrrEur = facturas
-    .filter((f) => f.tipo === "suscripcion")
+    .filter((f) => {
+      if (f.tipo !== "suscripcion") return false;
+      const ref = (f.fecha ?? f.created_at ?? "").slice(0, 10);
+      return ref >= inicioMes;
+    })
     .reduce((s, f) => s + (f.eur ?? 0), 0);
 
   return {
@@ -101,7 +130,7 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
     aceptadas: leads.filter((l) => ETAPAS_ACEPTADAS.includes(l.etapa)).length,
     pipelineEur: leads
       .filter((l) => ETAPAS_ABIERTAS.includes(l.etapa))
-      .reduce((s, l) => s + (l.valor_eur ?? 0), 0),
+      .reduce((s, l) => s + (masReciente(l.cotizaciones)?.total_eur ?? 0), 0),
     suscripcionesActivas,
     mrrEur,
   };

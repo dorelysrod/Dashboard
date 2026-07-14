@@ -86,7 +86,13 @@ export async function obtenerFiscal(): Promise<ResumenFiscal> {
     supabase.from("config").select("valor").eq("clave", "FISCAL").maybeSingle(),
   ]);
 
+  // Un panel de orientación fiscal no debe degradar a "0" en silencio: si RLS,
+  // red o una columna renombrada rompen CUALQUIERA de las queries, se lanza
+  // (no solo la primera) para no presentar cifras incorrectas como reales.
   if (facturasRes.error) throw facturasRes.error;
+  if (gastosRes.error) throw gastosRes.error;
+  if (horasRes.error) throw horasRes.error;
+  if (configRes.error) throw configRes.error;
 
   const cfg: ConfigFiscal = {
     ...FISCAL_DEFAULT,
