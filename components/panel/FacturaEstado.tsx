@@ -5,8 +5,9 @@ import type { EstadoFactura } from "@/lib/types/db";
 import { cambiarEstadoFactura } from "@/lib/data/acciones";
 
 /**
- * Estado de pago de una factura, conmutable (pendiente ⇄ pagada). Seguimiento de
- * cobros de la vista Facturación. Optimista: refleja el cambio al instante.
+ * Estado de pago de una factura, conmutable (pendiente ⇄ pagada). Seguimiento
+ * de cobros de la vista Facturación. Solo refleja el cambio cuando persistió;
+ * si la acción falla, muestra el error en vez de tragarlo.
  */
 export function FacturaEstado({
   facturaId,
@@ -16,26 +17,39 @@ export function FacturaEstado({
   estadoInicial: EstadoFactura;
 }) {
   const [estado, setEstado] = useState<EstadoFactura>(estadoInicial);
+  const [error, setError] = useState<string | null>(null);
   const [pendienteTx, iniciar] = useTransition();
 
   function alternar() {
     const nuevo: EstadoFactura = estado === "pagada" ? "pendiente" : "pagada";
     iniciar(async () => {
       const r = await cambiarEstadoFactura(facturaId, nuevo);
-      if (r.ok) setEstado(nuevo);
+      if (r.ok) {
+        setEstado(nuevo);
+        setError(null);
+      } else {
+        setError(r.error);
+      }
     });
   }
 
   return (
-    <button
-      type="button"
-      className={estado === "pagada" ? "paid" : "pend"}
-      style={{ border: "none", background: "none", padding: 0, font: "inherit" }}
-      onClick={alternar}
-      disabled={pendienteTx}
-      title="Cambiar estado de pago"
-    >
-      {estado === "pagada" ? "Pagada" : "Pendiente"}
-    </button>
+    <span>
+      <button
+        type="button"
+        className={estado === "pagada" ? "paid" : "pend"}
+        style={{ border: "none", background: "none", padding: 0, font: "inherit" }}
+        onClick={alternar}
+        disabled={pendienteTx}
+        title="Cambiar estado de pago"
+      >
+        {estado === "pagada" ? "Pagada" : "Pendiente"}
+      </button>
+      {error && (
+        <small role="alert" style={{ display: "block", color: "var(--pink)" }}>
+          {error}
+        </small>
+      )}
+    </span>
   );
 }

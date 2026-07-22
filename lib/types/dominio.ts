@@ -14,6 +14,25 @@ export interface EstadoEtapa {
 }
 
 /**
+ * Nichos comerciales (estudio de nichos jul 2026): el base (estética) + el
+ * ranking A. Mismos valores que el enum `nicho_lead` de BD; el mapeo vive en
+ * lib/data/mapeo.ts, como con las etapas.
+ */
+export type Nicho =
+  | "estetica"
+  | "turismo_dental"
+  | "bodas_venues"
+  | "tour_operadores";
+
+/** Clase de estilo del badge de nicho (tokens del mockup). */
+export type NichoCss = "ni-est" | "ni-dent" | "ni-bodas" | "ni-tour";
+
+export interface EstadoNicho {
+  css: NichoCss;
+  label: string;
+}
+
+/**
  * Vista de lead que necesita el pipeline + drawer. Agrega datos que en el
  * modelo normalizado viven en `leads` + `inspecciones` + `cotizaciones` +
  * `correos`; en M3 se arman desde esos SELECTs.
@@ -23,6 +42,7 @@ export interface Lead {
   nombre: string;
   /** "CDMX · Medicina estética" */
   meta: string;
+  nicho: Nicho;
   etapa: EstadoEtapa;
   tecnologia: string;
   hosting: string;
@@ -43,12 +63,15 @@ export interface Lead {
   vioCotizacion: number;
   /** Cuerpo del correo (con asunto en la 1ª línea). */
   correo: string;
+  /** Teléfono del negocio (seguimiento por WhatsApp). Vacío si no se conoce. */
+  telefono?: string;
 }
 
 /** Prospecto de la vista Buscar (resultado de Places en fase 2; seed en fase 1). */
 export interface Prospecto {
   nombre: string;
   meta: string;
+  nicho: Nicho;
   rating: number;
   resenas: number;
   /** Señal de tier / oportunidad. */

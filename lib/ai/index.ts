@@ -15,9 +15,13 @@ export function modoIAActivo(): ModoIA {
     : "manual";
 }
 
-/** Fábrica del proveedor activo según el flag. */
+/**
+ * Fábrica del proveedor activo según el flag. AI_MOCK=1 también activa el
+ * proveedor automático: el mock vive en AnthropicProvider.ejecutar (sin cargar
+ * el SDK), así la demo funciona sin exigir además AI_PROVIDER=anthropic.
+ */
 export function obtenerProveedorIA(): AIProvider {
-  return modoIAActivo() === "anthropic"
+  return modoIAActivo() === "anthropic" || process.env.AI_MOCK === "1"
     ? new AnthropicProvider()
     : new ManualProvider();
 }
@@ -36,7 +40,7 @@ export async function generarIA(solicitud: SolicitudIA): Promise<ResultadoIA> {
     return { manual: true, modo: "manual", prompt };
   }
 
-  const texto = await proveedor.ejecutar(prompt);
+  const texto = await proveedor.ejecutar(prompt, solicitud);
   return {
     manual: false,
     modo: "anthropic",

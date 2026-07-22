@@ -13,7 +13,29 @@ export async function actualizarSesion(request: NextRequest): Promise<NextRespon
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const enLogin = request.nextUrl.pathname.startsWith("/login");
+  // /maqueta/[token]: vista pública para el CLIENTE (no es usuario del panel).
+  // Se protege con el token de capacidad + expiración, no con login → se deja
+  // pasar sin sesión.
+  const enMaqueta = request.nextUrl.pathname.startsWith("/maqueta");
+  // Flujo de restablecer contraseña (pre-sesión): solicitar el enlace y el
+  // callback que canjea el código. Deben ser accesibles SIN sesión.
+  const p = request.nextUrl.pathname;
+  const enReset = p.startsWith("/recuperar") || p.startsWith("/auth");
+  // Portal público de propuestas /p/[numero] (candado email+código, no login).
+  const enPortal = p === "/p" || p.startsWith("/p/");
   const aLogin = () => NextResponse.redirect(new URL("/login", request.url));
+
+  // Separación por DOMINIO (seguridad): si LANDINGS_HOST está configurado y la
+  // petición llega por ese host, SOLO se sirve el portal /p/* (+ assets). Todo
+  // el panel (login, /resumen, /pipeline, API…) queda invisible ahí.
+  const host = request.headers.get("host") ?? "";
+  const landingsHost = process.env.LANDINGS_HOST;
+  if (landingsHost && host === landingsHost) {
+    const permitido = enPortal || p.startsWith("/_next") || p.startsWith("/favicon") || p === "/robots.txt";
+    return permitido ? NextResponse.next({ request }) : new NextResponse("No encontrado", { status: 404 });
+  }
+
+  if (enMaqueta || enReset || enPortal) return NextResponse.next({ request });
 
   if (!url || !anon) {
     // Sin Supabase configurado: en DESARROLLO se deja pasar para trabajar antes

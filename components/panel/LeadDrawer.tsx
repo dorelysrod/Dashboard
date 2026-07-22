@@ -11,9 +11,13 @@ import {
   guardarInspeccion,
 } from "@/lib/data/acciones";
 import { parseCorreo, parseCotizacion, parseInspeccion } from "@/lib/ai/parsers";
+import { mapearNicho } from "@/lib/data/mapeo";
 import { aEur, etiquetaScore, fE, fM, PAQUETE_BASE_MXN } from "@/lib/format";
 import { useLeadDrawer } from "./drawer-context";
 import { PanelIA } from "./PanelIA";
+import { MaquetaBoton } from "./MaquetaBoton";
+import { CalificarBoton } from "./CalificarBoton";
+import { FichaVenta } from "./FichaVenta";
 
 const DTABS = ["Inspección", "Cotización", "Correo", "Seguimiento"] as const;
 
@@ -199,6 +203,11 @@ export function LeadDrawer() {
   function persistirCot() {
     if (!vista) return;
     setErrorAccion(null);
+    // Number("") === 0: un total vacío se colaría como cotización de $0 MXN.
+    if (formCot.total.trim() === "" || !Number.isFinite(Number(formCot.total))) {
+      setErrorAccion("Ingresa un total válido en MXN.");
+      return;
+    }
     const total = Number(formCot.total);
     const modulosArr = formCot.modulos
       .split("\n")
@@ -229,6 +238,9 @@ export function LeadDrawer() {
               <h2>{vista.nombre}</h2>
               <div className="meta">
                 {vista.meta} ·{" "}
+                <span className={`nicho ${mapearNicho(vista.nicho).css}`}>
+                  {mapearNicho(vista.nicho).label}
+                </span>{" "}
                 <span className={`stage ${vista.etapa.css}`}>
                   {vista.etapa.label}
                 </span>
@@ -247,6 +259,9 @@ export function LeadDrawer() {
             </div>
 
             <div className="dbody">
+              {/* Ficha de venta: siempre visible arriba (dolor + contacto para la reunión). */}
+              <FichaVenta leadId={vista.id} />
+
               {/* Inspección */}
               {tab === 0 && !editInsp && (
                 <div>
@@ -291,6 +306,10 @@ export function LeadDrawer() {
                       onCerrar={() => setPanelIA(null)}
                     />
                   )}
+                  <div className="dact" style={{ marginTop: 8, flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+                    <CalificarBoton leadId={vista.id} />
+                    <MaquetaBoton leadId={vista.id} />
+                  </div>
                   {errorAccion && <div className="note">{errorAccion}</div>}
                 </div>
               )}
@@ -558,7 +577,28 @@ export function LeadDrawer() {
                     >
                       Aceptar
                     </button>
-                    <button className="btn" type="button" disabled={pendiente}>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={pendiente || !vista.telefono}
+                      title={
+                        vista.telefono
+                          ? "Abrir seguimiento por WhatsApp"
+                          : "El lead no tiene teléfono registrado"
+                      }
+                      onClick={() => {
+                        const tel = (vista.telefono ?? "").replace(/\D/g, "");
+                        if (!tel) return;
+                        const texto = encodeURIComponent(
+                          `Hola, te escribo de Ai Landing Pro por la propuesta para ${vista.nombre}. ¿Pudiste revisarla?`,
+                        );
+                        window.open(
+                          `https://wa.me/${tel}?text=${texto}`,
+                          "_blank",
+                          "noopener",
+                        );
+                      }}
+                    >
                       Seguimiento
                     </button>
                     <button

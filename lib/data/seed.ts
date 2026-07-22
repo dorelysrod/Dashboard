@@ -11,6 +11,7 @@ export const LEADS: Lead[] = [
     id: "lead-1",
     nombre: "Dra. Valeria Núñez",
     meta: "CDMX · Medicina estética",
+    nicho: "estetica",
     etapa: { css: "st-env", label: "Cotización enviada" },
     tecnologia: "Wix",
     hosting: "Wix",
@@ -31,6 +32,7 @@ export const LEADS: Lead[] = [
     id: "lead-2",
     nombre: "Dr. Mateo Ríos",
     meta: "Tijuana · Medicina estética",
+    nicho: "estetica",
     etapa: { css: "st-ab", label: "Abierta" },
     tecnologia: "WordPress",
     hosting: "cPanel",
@@ -50,6 +52,7 @@ export const LEADS: Lead[] = [
     id: "lead-3",
     nombre: "Clínica Lumina",
     meta: "CDMX · Medicina estética",
+    nicho: "estetica",
     etapa: { css: "st-env", label: "Cotización enviada" },
     tecnologia: "Instagram / Linktree",
     hosting: "—",
@@ -68,6 +71,7 @@ export const LEADS: Lead[] = [
     id: "lead-4",
     nombre: "Clínica Aurora Facial",
     meta: "Cancún · Medicina estética",
+    nicho: "estetica",
     etapa: { css: "st-ab", label: "Abierta" },
     tecnologia: "WordPress + Elementor",
     hosting: "Hosting compartido",
@@ -87,6 +91,7 @@ export const LEADS: Lead[] = [
     id: "lead-5",
     nombre: "Dra. Renata Vidal",
     meta: "Monterrey · Medicina estética",
+    nicho: "estetica",
     etapa: { css: "st-new", label: "Inspeccionado" },
     tecnologia: "Por inspeccionar",
     hosting: "—",
@@ -102,12 +107,19 @@ export const LEADS: Lead[] = [
   },
 ];
 
-/** Resultados de Buscar (stub Places en fase 1; nombres ficticios). */
+/**
+ * Resultados de Buscar (stub Places en fase 1; nombres ficticios). Mezcla el
+ * nicho base con el ranking A del estudio de nichos (jul 2026) para poder
+ * demostrar los chips de filtro sin API externa.
+ */
 export const PROSPECTOS: Prospecto[] = [
-  { nombre: "Estética Vértiz", meta: "CDMX", rating: 4.9, resenas: 85, senal: "Tier B · activa, web débil probable" },
-  { nombre: "Dra. Paola Quintero", meta: "Guadalajara", rating: 5.0, resenas: 49, senal: "Tier B · 5.0, pacientes de EE.UU." },
-  { nombre: "Dr. Hugo Bravo", meta: "Querétaro", rating: 5.0, resenas: 46, senal: "Tier B · le falta web fuerte" },
-  { nombre: "Dra. Lía Mendoza", meta: "Querétaro", rating: 5.0, resenas: 28, senal: "Tier B · owner-operated" },
-  { nombre: "Dra. Bruna Salas", meta: "Tijuana", rating: 5.0, resenas: 25, senal: "Tier B · frontera, bilingüe vende" },
-  { nombre: "Dra. Ana Gómez", meta: "Monterrey", rating: 5.0, resenas: 26, senal: "Tier B · 5.0" },
+  { nombre: "Estética Vértiz", meta: "CDMX", nicho: "estetica", rating: 4.9, resenas: 85, senal: "Tier B · activa, web débil probable" },
+  { nombre: "Dra. Paola Quintero", meta: "Guadalajara", nicho: "estetica", rating: 5.0, resenas: 49, senal: "Tier B · 5.0, pacientes de EE.UU." },
+  { nombre: "Dr. Hugo Bravo", meta: "Querétaro", nicho: "estetica", rating: 5.0, resenas: 46, senal: "Tier B · le falta web fuerte" },
+  { nombre: "Dra. Lía Mendoza", meta: "Querétaro", nicho: "estetica", rating: 5.0, resenas: 28, senal: "Tier B · owner-operated" },
+  { nombre: "Dra. Bruna Salas", meta: "Tijuana", nicho: "estetica", rating: 5.0, resenas: 25, senal: "Tier B · frontera, bilingüe vende" },
+  { nombre: "Dra. Ana Gómez", meta: "Monterrey", nicho: "estetica", rating: 5.0, resenas: 26, senal: "Tier B · 5.0" },
+  { nombre: "Dental Bahía", meta: "Tijuana", nicho: "turismo_dental", rating: 4.9, resenas: 132, senal: "Tier A · pacientes de EE.UU., sin web propia" },
+  { nombre: "Jardín Los Nogales", meta: "Querétaro", nicho: "bodas_venues", rating: 4.8, resenas: 210, senal: "Tier A · venue de bodas, solo Instagram" },
+  { nombre: "Caribe Azul Tours", meta: "Cancún", nicho: "tour_operadores", rating: 4.9, resenas: 340, senal: "Tier A · depende de OTAs, comisiones 20-30%" },
 ];
