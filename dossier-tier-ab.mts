@@ -16,11 +16,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const shape = { eslogan: z.string().nullable(), categoria: z.string().nullable(), servicios: z.array(z.string()), instagram: z.string().nullable(), facebook: z.string().nullable(), tiktok: z.string().nullable(), sitioWeb: z.string().nullable(), seguidoresIg: z.number().int().nullable(), telefono: z.string().nullable(), email: z.string().nullable(), direccion: z.string().nullable(), rating: z.number().nullable(), resenas: z.number().int().nullable(), brechaWeb: z.enum(["sin_web", "debil", "decente", "fuerte"]).nullable(), ownerOperated: z.boolean().nullable(), cadena: z.boolean().nullable(), premium: z.boolean().nullable(), colores: z.array(z.string()), logoUrl: z.string().nullable(), dolor: z.array(z.string()), ganchoDolor: z.string().nullable(), resumen: z.string() };
 
-async function dossier(negocio: string, ciudad: string | null) {
+async function dossier(negocio: string, ciudad: string | null, rubro: string | null) {
+  const giro = rubro || "negocios locales";
   const ac = new AbortController(); let cap: any = null;
   const t = tool("reportar_dossier", "x", shape, async (i: any) => { cap = i; ac.abort(); return { content: [{ type: "text" as const, text: "ok" }] }; });
   const s = createSdkMcpServer({ name: NS, version: "1.0.0", tools: [t] });
-  const q = query({ prompt: `Arma el dossier completo del prospecto: ${negocio}${ciudad ? ` en ${ciudad}` : ""} (México).`, options: { model: "claude-sonnet-5", maxTurns: 16, permissionMode: "bypassPermissions", mcpServers: { [NS]: s }, allowedTools: [`mcp__${NS}__reportar_dossier`, "WebSearch"], disallowedTools: ["Bash", "Read", "Write", "Edit", "WebFetch", "Glob", "Grep", "TodoWrite", "Task"], systemPrompt: "Analista de prospectos para una agencia que rehace webs de clínicas de estética. Reúne TODO lo público con WebSearch (Instagram/Facebook/Google Business/directorios): eslogan, seguidores, categoría, servicios, teléfono, email, dirección, rating, redes, brechaWeb. LO MÁS IMPORTANTE: deduce el DOLOR — qué pierde HOY por su web/presencia, concreto y que se sienta (ej: 'sin web → cuando la buscan en Google agendan con la competencia'; 'sin agenda online → pierde reservas de noche'). dolor=2-4 específicos; ganchoDolor=el #1 en una frase que duela. NO inventes datos duros; SÍ infiere el dolor. Máx 5 búsquedas y reporta.", settingSources: [], abortController: ac } as any });
+  const q = query({ prompt: `Arma el dossier completo del prospecto: ${negocio}${ciudad ? ` en ${ciudad}` : ""} (México).`, options: { model: "claude-sonnet-5", maxTurns: 16, permissionMode: "bypassPermissions", mcpServers: { [NS]: s }, allowedTools: [`mcp__${NS}__reportar_dossier`, "WebSearch"], disallowedTools: ["Bash", "Read", "Write", "Edit", "WebFetch", "Glob", "Grep", "TodoWrite", "Task"], systemPrompt: `Analista de prospectos para una agencia que rehace webs de ${giro}. Reúne TODO lo público con WebSearch (Instagram/Facebook/Google Business/directorios): eslogan, seguidores, categoría, servicios, teléfono, email, dirección, rating, redes, brechaWeb. LO MÁS IMPORTANTE: deduce el DOLOR — qué pierde HOY por su web/presencia, concreto y que se sienta (ej: 'sin web → cuando la buscan en Google agendan con la competencia'; 'sin agenda online → pierde reservas de noche'). dolor=2-4 específicos; ganchoDolor=el #1 en una frase que duela. NO inventes datos duros; SÍ infiere el dolor. Máx 5 búsquedas y reporta.`, settingSources: [], abortController: ac } as any });
   for await (const _ of q as any) { if (cap) break; }
   return cap;
 }
@@ -30,7 +31,7 @@ async function main() {
   mkdirSync("salida", { recursive: true });
   // SOLO_NUEVOS=1 (flujo diario): solo leads que aún no tienen dossier, para
   // que la corrida diaria sea incremental y no re-investigue toda la base.
-  let q = sb.from("leads").select("id,negocio,ciudad,tier").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
+  let q = sb.from("leads").select("id,negocio,ciudad,tier,rubro").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
   if (process.env.SOLO_NUEVOS === "1") q = q.is("dossier", null);
   // LIMITE: cupo por corrida (flujo diario) — Tier A primero, mejores primero.
   if (process.env.LIMITE) q = q.order("tier").order("rating", { ascending: false, nullsFirst: false }).limit(Number(process.env.LIMITE));
@@ -39,7 +40,7 @@ async function main() {
   const out: any[] = [];
   for (const [i, lead] of (leads ?? []).entries()) {
     let d: any;
-    try { d = await retry(() => dossier(lead.negocio, lead.ciudad)); }
+    try { d = await retry(() => dossier(lead.negocio, lead.ciudad, (lead as any).rubro)); }
     catch (e: any) { log(`[${i + 1}] ${lead.negocio}: falló (${e?.message?.slice(0, 40)}) — salto`); continue; }
     if (!d) { log(`[${i + 1}] ${lead.negocio}: sin dossier`); continue; }
     await sb.from("leads").update({ rating: d.rating, resenas: d.resenas, sitio_web: d.sitioWeb, telefono: d.telefono, dossier: d }).eq("id", lead.id);

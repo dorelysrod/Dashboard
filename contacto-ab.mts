@@ -47,7 +47,7 @@ const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,
 async function main() {
   mkdirSync("salida/contacto", { recursive: true });
   // SOLO_NUEVOS=1 (flujo diario): solo leads sin mensajes generados todavía.
-  let q = sb.from("leads").select("id,negocio,ciudad,tier,telefono,dossier").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
+  let q = sb.from("leads").select("id,negocio,ciudad,tier,telefono,dossier,rubro").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
   if (process.env.SOLO_NUEVOS === "1") q = q.is("mensajes", null);
   // LIMITE: cupo por corrida (flujo diario) — Tier A primero.
   if (process.env.LIMITE) q = q.order("tier").limit(Number(process.env.LIMITE));
@@ -61,7 +61,7 @@ async function main() {
       log(`[${i + 1}/${leads!.length}] ${lead.tier} ${lead.negocio} — dossier reutilizado`);
     } else
     try { d = await retry(() => sdk({ model: "claude-sonnet-5", web: true, toolName: "reportar_dossier", shape: dossierShape,
-      system: "Analista de prospectos para agencia que rehace webs de clínicas de estética. Reúne lo público con WebSearch (Instagram/Facebook/Google Business/directorios/web): categoría, servicios, teléfono, EMAIL (búscalo en su web/Facebook/Google Business), dirección, rating/reseñas, redes, brechaWeb, cadena/owner/premium. Deduce el DOLOR: qué pierde HOY por su web/presencia (concreto, que se sienta). dolor=2-4; ganchoDolor=el #1. NO inventes datos duros; SÍ infiere el dolor. Máx 5 búsquedas.",
+      system: `Analista de prospectos para agencia que rehace webs de ${(lead as any).rubro || "negocios locales"}. Reúne lo público con WebSearch (Instagram/Facebook/Google Business/directorios/web): categoría, servicios, teléfono, EMAIL (búscalo en su web/Facebook/Google Business), dirección, rating/reseñas, redes, brechaWeb, cadena/owner/premium. Deduce el DOLOR: qué pierde HOY por su web/presencia (concreto, que se sienta). dolor=2-4; ganchoDolor=el #1. NO inventes datos duros; SÍ infiere el dolor. Máx 5 búsquedas.`,
       user: `Dossier con contacto y dolor de: ${lead.negocio}${lead.ciudad ? ` en ${lead.ciudad}` : ""} (México).` })); }
     catch (e: any) { log(`[${i + 1}] ${lead.negocio}: dossier falló — salto`); continue; }
     if (!d) continue;
@@ -71,7 +71,7 @@ async function main() {
     // 3 mensajes por canal, basados en el dolor.
     let msg: any = null;
     try { msg = await retry(() => sdk({ model: "claude-sonnet-5", toolName: "reportar_mensajes", shape: msgShape,
-      system: "Escribes outreach de VENTA POR DOLOR (Problema→Agitar→Solución) para una agencia que rehace webs de clínicas de estética en México. Español MX, cercano, sin spam ni promesas exageradas. Adapta al canal: whatsapp = 2-4 líneas, muy directo, un solo dolor + CTA suave (una pregunta fácil); dm = como whatsapp pero aún más casual (Instagram); correo = asunto (máx 8 palabras que toque el dolor) + cuerpo ~130 palabras con los 4 momentos. Usa el DOLOR provisto. Entrega los 3 mensajes ÚNICAMENTE invocando la tool reportar_mensajes (no escribas texto suelto).",
+      system: `Escribes outreach de VENTA POR DOLOR (Problema→Agitar→Solución) para una agencia que rehace webs de ${(lead as any).rubro || "negocios locales"} en México. Español MX, cercano, sin spam ni promesas exageradas. Adapta al canal: whatsapp = 2-4 líneas, muy directo, un solo dolor + CTA suave (una pregunta fácil); dm = como whatsapp pero aún más casual (Instagram); correo = asunto (máx 8 palabras que toque el dolor) + cuerpo ~130 palabras con los 4 momentos. Usa el DOLOR provisto. Entrega los 3 mensajes ÚNICAMENTE invocando la tool reportar_mensajes (no escribas texto suelto).`,
       user: `Negocio: ${lead.negocio} (${lead.ciudad}). Servicios: ${(d.servicios||[]).join(", ")||"—"}. DOLOR: ${(d.dolor||[]).join(" | ")||d.ganchoDolor||"web débil/inexistente"}. Gancho: ${d.ganchoDolor||"—"}. Escribe los 3 mensajes.` })); }
     catch (e: any) { log(`   mensajes ${lead.negocio}: falló (${(e?.message||"").slice(0,50)})`); }
     if (!msg) log(`   ⚠ ${lead.negocio}: mensajes vacíos (el modelo no invocó la tool)`);

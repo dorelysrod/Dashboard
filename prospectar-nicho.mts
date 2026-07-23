@@ -13,6 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { calificarLead, segmentoDeTier } from "./lib/data/scoring";
 import { clasificarWebMaps } from "./lib/data/nichos";
+import { nichoDesdeRubro } from "./lib/data/mapeo";
 
 for (const line of readFileSync(".env.local", "utf8").split("\n")) {
   const m = line.match(/^([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
@@ -87,6 +88,9 @@ for (const f of filas.slice(1)) {
     negocio,
     ciudad,
     rubro: nicho,
+    // Columna enum del pipeline (chips por nicho): sin esto, todo lead nuevo
+    // caía en el default 'estetica' aunque fuera dental/bodas/tours.
+    nicho: nichoDesdeRubro(nicho),
     rating,
     resenas,
     telefono: (f[iTel] ?? "").trim() || null,
