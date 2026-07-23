@@ -50,6 +50,19 @@ const ETAPAS_COTIZADAS: EtapaLead[] = [
 const ETAPAS_ACEPTADAS: EtapaLead[] = ["aceptado", "en_desarrollo", "entregado"];
 const ETAPAS_ABIERTAS: EtapaLead[] = ["enviado", "abierto"];
 
+/**
+ * Etapas que pueden generar una "Acción de hoy": espejo EXACTO de los css que
+ * consulta `accionesDeHoy` (st-env=enviado, st-ab=abierto, st-dev=
+ * en_desarrollo). Exportada para acotar la query de leads server-side (T-007)
+ * sin cargar todo el pipeline; el test de equivalencia en
+ * tests/unit/resumen-acciones.test.ts garantiza que el filtro no pierde nada.
+ */
+export const ETAPAS_ACCIONABLES: readonly EtapaLead[] = [
+  "enviado",
+  "abierto",
+  "en_desarrollo",
+];
+
 function resumenDesdeSeed(): ResumenKpis {
   // Espejo de ETAPAS_COTIZADAS del camino Supabase (st-ac cubre aceptado y
   // entregado): con `mxn > 0` el seed contaba cotizaciones aún no enviadas.
