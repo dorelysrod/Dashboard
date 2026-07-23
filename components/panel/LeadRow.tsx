@@ -2,6 +2,7 @@
 
 import type { Lead } from "@/lib/types/dominio";
 import { aEur, etiquetaScore, fE, fM } from "@/lib/format";
+import { mapearNicho } from "@/lib/data/mapeo";
 import { useLeadDrawer } from "./drawer-context";
 
 /**
@@ -18,6 +19,7 @@ export function LeadRow({
   const { abrir } = useLeadDrawer();
   const eur = aEur(lead.mxn);
   const score = etiquetaScore(eur, lead.esfuerzoDias);
+  const nicho = mapearNicho(lead.nicho);
 
   return (
     <div
@@ -58,6 +60,7 @@ export function LeadRow({
           ) : (
             <span className="opens">—</span>
           )}
+          <span className={`nicho ${nicho.css}`}>{nicho.label}</span>
           {mostrarEtapa ? (
             <span className={`stage ${lead.etapa.css}`}>{lead.etapa.label}</span>
           ) : (

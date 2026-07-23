@@ -80,9 +80,11 @@ export async function obtenerFiscal(): Promise<ResumenFiscal> {
 
   const supabase = await crearClienteServidor();
   const [facturasRes, gastosRes, horasRes, configRes] = await Promise.all([
-    supabase.from("facturas").select("id, concepto, mxn, tipo_cambio, eur"),
-    supabase.from("gastos").select("eur, btw_eur"),
-    supabase.from("horas").select("real_h, estimado_h"),
+    supabase
+      .from("facturas")
+      .select("id, concepto, mxn, tipo_cambio, eur, fecha, created_at"),
+    supabase.from("gastos").select("eur, btw_eur, fecha, created_at"),
+    supabase.from("horas").select("real_h, created_at"),
     supabase.from("config").select("valor").eq("clave", "FISCAL").maybeSingle(),
   ]);
 
@@ -99,18 +101,43 @@ export async function obtenerFiscal(): Promise<ResumenFiscal> {
     ...((configRes.data?.valor as Partial<ConfigFiscal> | null) ?? {}),
   };
 
-  const facturas = facturasRes.data ?? [];
-  const gastos = gastosRes.data ?? [];
-  const horas = horasRes.data ?? [];
+  // PERIODOS: el panel presenta cifras "del año" (IB, horas) y "del trimestre"
+  // (BTW). Sin filtro, en cuanto los datos abarquen más de un periodo cada
+  // declaración mostraría el acumulado histórico como si fuera del periodo.
+  const ahora = new Date();
+  const anio = ahora.getFullYear();
+  const trimestre = Math.floor(ahora.getMonth() / 3);
+  const fechaDe = (fecha: string | null, createdAt: string): Date =>
+    new Date(fecha ? `${fecha}T00:00:00` : createdAt);
+  const delAnio = (d: Date): boolean => d.getFullYear() === anio;
+  const delTrimestre = (d: Date): boolean =>
+    delAnio(d) && Math.floor(d.getMonth() / 3) === trimestre;
+
+  const facturas = (facturasRes.data ?? []).filter((f) =>
+    delAnio(fechaDe(f.fecha, f.created_at)),
+  );
+  const gastosAnio = (gastosRes.data ?? []).filter((g) =>
+    delAnio(fechaDe(g.fecha, g.created_at)),
+  );
+  const gastosTrimestre = gastosAnio.filter((g) =>
+    delTrimestre(fechaDe(g.fecha, g.created_at)),
+  );
+  const horas = (horasRes.data ?? []).filter((h) =>
+    delAnio(new Date(h.created_at)),
+  );
 
   const ingresosEur = facturas.reduce((s, f) => s + (f.eur ?? 0), 0);
-  const gastosEur = gastos.reduce((s, g) => s + (g.eur ?? 0), 0);
+  const gastosEur = gastosAnio.reduce((s, g) => s + (g.eur ?? 0), 0);
   const gananciaEur = ingresosEur - gastosEur;
   const apartarEur = Math.round(gananciaEur * cfg.apartar_pct);
 
-  // BTW: a México no se cobra (0); se recupera el de los gastos.
+  // BTW (trimestral): a México no se cobra (0); se recupera el de los gastos
+  // del trimestre en curso.
   const btwCobradoEur = 0;
-  const btwRecuperableEur = gastos.reduce((s, g) => s + (g.btw_eur ?? 0), 0);
+  const btwRecuperableEur = gastosTrimestre.reduce(
+    (s, g) => s + (g.btw_eur ?? 0),
+    0,
+  );
   const btwResultadoEur = btwCobradoEur - btwRecuperableEur;
 
   // Inkomstenbelasting sobre la ganancia.
@@ -120,10 +147,9 @@ export async function obtenerFiscal(): Promise<ResumenFiscal> {
   const zvwEur = Math.round(baseGravableEur * cfg.zvw);
   const apartarIbEur = ibEur + zvwEur;
 
-  const horasRegistradas = horas.reduce(
-    (s, h) => s + (h.real_h ?? h.estimado_h ?? 0),
-    0,
-  );
+  // Urencriterium: solo horas REALES trabajadas (documentables ante la
+  // Belastingdienst); las estimadas inflarían el contador con horas no hechas.
+  const horasRegistradas = horas.reduce((s, h) => s + (h.real_h ?? 0), 0);
 
   const facturasFiscal: FacturaFiscal[] = facturas.map((f) => ({
     id: f.id,

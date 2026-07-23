@@ -51,11 +51,17 @@ const ETAPAS_ACEPTADAS: EtapaLead[] = ["aceptado", "en_desarrollo", "entregado"]
 const ETAPAS_ABIERTAS: EtapaLead[] = ["enviado", "abierto"];
 
 function resumenDesdeSeed(): ResumenKpis {
-  const cotizadas = LEADS.filter((l) => l.mxn > 0);
+  // Espejo de ETAPAS_COTIZADAS del camino Supabase (st-ac cubre aceptado y
+  // entregado): con `mxn > 0` el seed contaba cotizaciones aún no enviadas.
+  const CSS_COTIZADAS = ["st-env", "st-ab", "st-ac", "st-dev"];
+  const cotizadas = LEADS.filter((l) => CSS_COTIZADAS.includes(l.etapa.css));
   const abiertos = LEADS.filter((l) => l.aperturas > 0).length;
   // "Enviado" = tiene correo redactado; antes `aperturas >= 0` era siempre true
-  // y contaba TODOS los leads, distorsionando pctAbiertas en modo seed.
-  const enviados = LEADS.filter((l) => l.correo.trim() !== "").length;
+  // y contaba TODOS los leads, distorsionando pctAbiertas en modo seed. El
+  // sentinel "(pendiente de generar)" es un correo que aún NO existe.
+  const enviados = LEADS.filter(
+    (l) => l.correo.trim() !== "" && l.correo !== "(pendiente de generar)",
+  ).length;
   const aceptadas = LEADS.filter((l) => l.etapa.css === "st-dev" || l.etapa.css === "st-ac").length;
   const pipelineEur = LEADS.filter((l) => l.etapa.css === "st-env" || l.etapa.css === "st-ab")
     .reduce((s, l) => s + aEur(l.mxn), 0);
@@ -152,14 +158,18 @@ export function accionesDeHoy(leads: Lead[], limite = 4): AccionHoy[] {
   const acciones: AccionHoy[] = [];
 
   for (const l of leads) {
-    if (l.aperturas >= 3) {
+    // Las señales calientes solo aplican a negociaciones ABIERTAS: un cliente
+    // ya aceptado/entregado (o descartado) con aperturas históricas no es una
+    // acción de seguimiento comercial.
+    const abierta = l.etapa.css === "st-env" || l.etapa.css === "st-ab";
+    if (abierta && l.aperturas >= 3) {
       acciones.push({
         id: l.id,
         tono: "hot",
         motivo: `${l.nombre} abrió la cotización ${l.aperturas} veces, sin responder.`,
         sugerencia: "→ Mándale seguimiento.",
       });
-    } else if (l.clics > 0) {
+    } else if (abierta && l.clics > 0) {
       acciones.push({
         id: l.id,
         tono: "hot",

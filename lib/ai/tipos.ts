@@ -13,7 +13,8 @@ export type TareaIA =
   | "segmento"
   | "correo"
   | "cotizacion"
-  | "reporte";
+  | "reporte"
+  | "maqueta";
 
 // ── Contextos de dominio por tarea (entrada para construir el prompt) ────────
 export interface CtxInspeccion {
@@ -33,6 +34,11 @@ export interface CtxCorreo {
   rubro?: string | null;
   mejoras?: string[];
   recomendacion?: string | null;
+  /** El DOLOR del prospecto (del dossier): qué pierde hoy. La venta se basa en esto. */
+  dolor?: string[];
+  ganchoDolor?: string | null;
+  /** Contexto para personalizar (servicios, ciudad, seguidores…). */
+  ciudad?: string | null;
 }
 export interface CtxCotizacion {
   negocio: string;
@@ -43,6 +49,40 @@ export interface CtxReporte {
   negocio: string;
   periodo?: string;
 }
+export interface CtxMaqueta {
+  negocio: string;
+  rubro?: string | null;
+  ciudad?: string | null;
+  /** URL del sitio actual, si se conoce/descubre (null = crear desde cero). */
+  sitioWeb?: string | null;
+  /** Texto extraído del sitio actual (para rediseñar mejorándolo). */
+  sitioTexto?: string | null;
+  /** Mejoras detectadas en la inspección, si las hay. */
+  mejoras?: string[];
+  /**
+   * Identidad de MARCA existente (extraída del sitio). Si viene, el rediseño
+   * parte de ella en vez de inventar. El logo real se incrusta después (no pasa
+   * por el modelo); aquí solo se indica si existe, para dejar el marcador ⟦LOGO⟧.
+   */
+  marca?: {
+    colores?: string[];
+    fuentes?: string[];
+    tieneLogo?: boolean;
+    /** Eslogan/tagline real de la marca (de su web o bio de redes). */
+    eslogan?: string | null;
+    /** Familia tipográfica REAL del cliente ya EMBEBIDA (@font-face) → úsala tal cual. */
+    tipografiaFamilia?: string | null;
+  };
+  /** Dirección de arte explícita (solo cuando NO hay marca; para dar variedad). */
+  direccion?: string;
+  /**
+   * Fundamento de diseño del ux-dev (tokens + jerarquía + mapa de secciones) que
+   * el frontend-dev debe implementar. Lo inyecta el pipeline del equipo de diseño.
+   */
+  fundamento?: string;
+  /** Permite fotos royalty-free vía marcadores ⟦FOTO:slug⟧ (se embeben luego). */
+  permitirFotos?: boolean;
+}
 
 /** Solicitud de generación: tarea + su contexto (unión discriminada). */
 export type SolicitudIA =
@@ -50,7 +90,8 @@ export type SolicitudIA =
   | { tarea: "segmento"; contexto: CtxSegmento }
   | { tarea: "correo"; contexto: CtxCorreo }
   | { tarea: "cotizacion"; contexto: CtxCotizacion }
-  | { tarea: "reporte"; contexto: CtxReporte };
+  | { tarea: "reporte"; contexto: CtxReporte }
+  | { tarea: "maqueta"; contexto: CtxMaqueta };
 
 /** Salida cruda del modelo (se persiste en `*.raw` y luego se parsea). */
 export interface RespuestaIA {
@@ -86,6 +127,10 @@ export interface AIProvider {
   readonly requiereManual: boolean;
   /** Construye el prompt para la tarea. */
   construirPrompt(solicitud: SolicitudIA): string;
-  /** Ejecuta el prompt y devuelve texto crudo. Manual: lanza ErrorIAManual. */
-  ejecutar(prompt: string): Promise<string>;
+  /**
+   * Ejecuta el prompt y devuelve texto crudo. Manual: lanza ErrorIAManual.
+   * `solicitud` es opcional por compatibilidad; el proveedor automático la usa
+   * para elegir el esquema de salida estructurada (lib/ai/esquemas.ts).
+   */
+  ejecutar(prompt: string, solicitud?: SolicitudIA): Promise<string>;
 }

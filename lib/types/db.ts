@@ -16,6 +16,13 @@ export type EtapaLead =
   | "descartado";
 
 export type TierLead = "A" | "B" | "C";
+
+/** Nichos comerciales (enum nicho_lead · estudio de nichos jul 2026). */
+export type NichoLead =
+  | "estetica"
+  | "turismo_dental"
+  | "bodas_venues"
+  | "tour_operadores";
 export type EstadoCotizacion = "borrador" | "enviada" | "aceptada" | "rechazada";
 export type TipoFactura = "build" | "suscripcion";
 export type EstadoFactura = "pendiente" | "pagada";
@@ -35,6 +42,7 @@ export interface LeadRow {
   tecnologia: string | null;
   segmento: number | null;
   tier: TierLead | null;
+  nicho: NichoLead;
   etapa: EtapaLead;
   valor_eur: number | null;
   esfuerzo_dias: number | null;

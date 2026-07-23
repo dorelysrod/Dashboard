@@ -1,15 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import { iniciarSesion, type EstadoLogin } from "./actions";
 
 const estadoInicial: EstadoLogin = { error: null };
 
-export default function LoginPage() {
+function FormularioLogin() {
   const [estado, accion, pendiente] = useActionState(
     iniciarSesion,
     estadoInicial,
   );
+  // Señal de /auth/callback: enlace de restablecer inválido o vencido.
+  const enlaceInvalido = useSearchParams().get("error") === "enlace_invalido";
 
   return (
     <main className="login-wrap">
@@ -20,6 +23,13 @@ export default function LoginPage() {
         <p className="vsub" style={{ marginBottom: 4 }}>
           Entra al panel operativo.
         </p>
+
+        {enlaceInvalido && (
+          <p className="auth-error" role="alert">
+            El enlace de restablecimiento no es válido o expiró. Solicita uno
+            nuevo desde «¿Olvidaste tu contraseña?».
+          </p>
+        )}
 
         <div className="field">
           <label className="l" htmlFor="email">
@@ -58,7 +68,20 @@ export default function LoginPage() {
         <button className="btn-g btn" type="submit" disabled={pendiente}>
           {pendiente ? "Entrando…" : "Entrar"}
         </button>
+
+        <p className="vsub" style={{ marginTop: 12, fontSize: "0.85rem" }}>
+          <a href="/recuperar">¿Olvidaste tu contraseña?</a>
+        </p>
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams exige un límite de Suspense al prerenderizar.
+  return (
+    <Suspense fallback={null}>
+      <FormularioLogin />
+    </Suspense>
   );
 }
