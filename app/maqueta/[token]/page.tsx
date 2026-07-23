@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { leerMaquetaPorToken } from "@/lib/maquetas/store";
 import { ProteccionCaptura } from "@/components/maqueta/ProteccionCaptura";
+
+/** Un enlace filtrado nunca debe acabar indexado en buscadores. */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Vista PÚBLICA de una maqueta, para enseñarla al cliente. Gating server-side:
