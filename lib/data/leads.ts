@@ -51,17 +51,29 @@ export interface FiltroLeads extends FiltrosCalidadLeads {
  */
 interface ConsultaFiltrable {
   eq(columna: string, valor: string): this;
-  not(columna: string, operador: string, valor: null): this;
   gte(columna: string, valor: number): this;
   gt(columna: string, valor: number): this;
   in(columna: string, valores: readonly string[]): this;
 }
 
 /**
+ * Subconjunto ordenable del query builder de PostgREST. Extraído a interfaz
+ * estructural para poder testear con un builder falso que el orden emitido
+ * (columnas, dirección y NULLS LAST) espeja `compararPorCalificacion`.
+ */
+export interface ConsultaOrdenable {
+  order(
+    columna: string,
+    opciones: { ascending: boolean; nullsFirst?: boolean },
+  ): this;
+}
+
+/**
  * Traduce `FiltroLeads` a condiciones de la query (server-side, spec AC 11:
  * nunca filtrar en memoria post-página). Espejo exacto de los predicados puros
  * de `filtros-leads` que usa el fallback de seed:
- * - calificados → rating no nulo y ≥ umbral (`esMejorCalificado`)
+ * - calificados → rating ≥ umbral; en SQL `NULL >= x` es NULL → falso en
+ *   WHERE, así que excluye los rating null igual que `esMejorCalificado`
  * - conResenas  → resenas > 0; en SQL `NULL > 0` es falso, igual que `?? 0`
  * - inspeccionados → etapa ∈ ETAPAS_INSPECCIONADAS
  */
@@ -72,12 +84,32 @@ function aplicarFiltrosLeads<Q>(consulta: Q, filtro: FiltroLeads): Q {
   // así que el encadenado es seguro y el call-site conserva su tipo exacto.
   let c = consulta as ConsultaFiltrable;
   if (filtro.nicho) c = c.eq("nicho", filtro.nicho);
-  if (filtro.calificados) {
-    c = c.not("rating", "is", null).gte("rating", UMBRAL_RATING_CALIFICADO);
-  }
+  if (filtro.calificados) c = c.gte("rating", UMBRAL_RATING_CALIFICADO);
   if (filtro.conResenas) c = c.gt("resenas", 0);
   if (filtro.inspeccionados) c = c.in("etapa", ETAPAS_INSPECCIONADAS);
   return c as Q;
+}
+
+/**
+ * Orden server-side de la lista. Con 'Mejores calificados': rating desc,
+ * desempate resenas desc y created_at asc como clave terciaria estable (sin
+ * ella, empates entre páginas podrían duplicar/saltar filas). Sin el filtro se
+ * conserva el orden actual created_at asc (regresión cero). Exportada para
+ * testear con un builder falso que el orden emitido espeja el comparador puro
+ * `compararPorCalificacion` del modo seed (paridad de modos, spec AC 11).
+ */
+export function aplicarOrdenLeads<Q>(consulta: Q, filtro: FiltroLeads): Q {
+  // Mismo type-erasure deliberado que aplicarFiltrosLeads (ver arriba).
+  const c = consulta as ConsultaOrdenable;
+  const ordenada = filtro.calificados
+    ? c
+        // NULLS LAST explícito: PostgreSQL usa NULLS FIRST por defecto en
+        // DESC, pero el comparador seed trata null como 0/-1 (al final).
+        .order("rating", { ascending: false, nullsFirst: false })
+        .order("resenas", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: true })
+    : c.order("created_at", { ascending: true });
+  return ordenada as Q;
 }
 
 /**
@@ -116,17 +148,10 @@ export async function obtenerLeadsPagina(
     supabase.from("leads").select(SELECT_LEAD),
     filtro,
   );
-  // 'Mejores calificados' ordena TODO el conjunto server-side: rating desc,
-  // desempate resenas desc y created_at asc como clave terciaria estable (sin
-  // ella, empates entre páginas podrían duplicar/saltar filas). Sin el filtro
-  // se conserva el orden actual created_at asc (regresión cero).
-  const ordenada = filtro.calificados
-    ? consulta
-        .order("rating", { ascending: false })
-        .order("resenas", { ascending: false })
-        .order("created_at", { ascending: true })
-    : consulta.order("created_at", { ascending: true });
-  const { data, error } = await ordenada.range(desde, desde + POR_PAGINA - 1);
+  const { data, error } = await aplicarOrdenLeads(consulta, filtro).range(
+    desde,
+    desde + POR_PAGINA - 1,
+  );
 
   if (error) throw error;
   return {
