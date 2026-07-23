@@ -1,6 +1,7 @@
 import type { EstadoFactura, TipoFactura } from "@/lib/types/db";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
+import { obtenerTodasLasFilas, type ResultadoLote } from "./lotes";
 
 /**
  * Servicio de Facturación. Lee `facturas` (join con `clientes` para el nombre) y
@@ -74,14 +75,19 @@ export async function obtenerFacturas(): Promise<ResumenFacturas> {
   }
 
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase
-    .from("facturas")
-    .select("id, concepto, mxn, eur, tipo, estado, fecha, clientes(nombre)")
-    .order("fecha", { ascending: false });
+  // Por LOTES (T-008): sin .range() la lista y los totales se truncaban en
+  // silencio a la factura #1000. `id` como desempate: fecha puede repetirse y
+  // el paginado por lotes exige orden total estable.
+  const data = await obtenerTodasLasFilas<FilaFactura>((desde, hasta) =>
+    supabase
+      .from("facturas")
+      .select("id, concepto, mxn, eur, tipo, estado, fecha, clientes(nombre)")
+      .order("fecha", { ascending: false })
+      .order("id", { ascending: true })
+      .range(desde, hasta) as unknown as PromiseLike<ResultadoLote<FilaFactura>>,
+  );
 
-  if (error) throw error;
-
-  const facturas: Factura[] = (data as FilaFactura[]).map((f) => ({
+  const facturas: Factura[] = data.map((f) => ({
     id: f.id,
     cliente: nombreCliente(f.clientes),
     concepto: f.concepto ?? "—",

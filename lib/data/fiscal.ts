@@ -1,5 +1,28 @@
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
+import { obtenerTodasLasFilas, type ResultadoLote } from "./lotes";
+
+interface FilaFacturaFiscal {
+  id: string;
+  concepto: string | null;
+  mxn: number | null;
+  tipo_cambio: number | null;
+  eur: number | null;
+  fecha: string | null;
+  created_at: string;
+}
+interface FilaGasto {
+  id: string;
+  eur: number | null;
+  btw_eur: number | null;
+  fecha: string | null;
+  created_at: string;
+}
+interface FilaHora {
+  id: string;
+  real_h: number | null;
+  created_at: string;
+}
 
 /**
  * Motor Fiscal (§M5). Calcula desde Supabase los dos impuestos del régimen NL:
@@ -79,21 +102,33 @@ export async function obtenerFiscal(): Promise<ResumenFiscal> {
   if (!supabaseConfigurado()) return vacio();
 
   const supabase = await crearClienteServidor();
-  const [facturasRes, gastosRes, horasRes, configRes] = await Promise.all([
-    supabase
-      .from("facturas")
-      .select("id, concepto, mxn, tipo_cambio, eur, fecha, created_at"),
-    supabase.from("gastos").select("eur, btw_eur, fecha, created_at"),
-    supabase.from("horas").select("real_h, created_at"),
+  // Por LOTES con orden estable (T-008): cifras FISCALES sobre un select sin
+  // .range() se truncan en silencio al max_rows de PostgREST (1000) — una
+  // declaración calculada sobre un subconjunto es peor que un error. Un fallo
+  // en cualquier lote se propaga (paridad con el check de configRes abajo).
+  const [facturasData, gastosData, horasData, configRes] = await Promise.all([
+    obtenerTodasLasFilas<FilaFacturaFiscal>((desde, hasta) =>
+      supabase
+        .from("facturas")
+        .select("id, concepto, mxn, tipo_cambio, eur, fecha, created_at")
+        .order("id", { ascending: true })
+        .range(desde, hasta) as unknown as PromiseLike<ResultadoLote<FilaFacturaFiscal>>,
+    ),
+    obtenerTodasLasFilas<FilaGasto>((desde, hasta) =>
+      supabase.from("gastos").select("id, eur, btw_eur, fecha, created_at").order("id", { ascending: true }).range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<FilaGasto>
+      >,
+    ),
+    obtenerTodasLasFilas<FilaHora>((desde, hasta) =>
+      supabase.from("horas").select("id, real_h, created_at").order("id", { ascending: true }).range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<FilaHora>
+      >,
+    ),
     supabase.from("config").select("valor").eq("clave", "FISCAL").maybeSingle(),
   ]);
 
-  // Un panel de orientación fiscal no debe degradar a "0" en silencio: si RLS,
-  // red o una columna renombrada rompen CUALQUIERA de las queries, se lanza
-  // (no solo la primera) para no presentar cifras incorrectas como reales.
-  if (facturasRes.error) throw facturasRes.error;
-  if (gastosRes.error) throw gastosRes.error;
-  if (horasRes.error) throw horasRes.error;
+  // Un panel de orientación fiscal no debe degradar a "0" en silencio: la
+  // config también lanza en error para no presentar cifras incorrectas.
   if (configRes.error) throw configRes.error;
 
   const cfg: ConfigFiscal = {
@@ -113,18 +148,16 @@ export async function obtenerFiscal(): Promise<ResumenFiscal> {
   const delTrimestre = (d: Date): boolean =>
     delAnio(d) && Math.floor(d.getMonth() / 3) === trimestre;
 
-  const facturas = (facturasRes.data ?? []).filter((f) =>
+  const facturas = facturasData.filter((f) =>
     delAnio(fechaDe(f.fecha, f.created_at)),
   );
-  const gastosAnio = (gastosRes.data ?? []).filter((g) =>
+  const gastosAnio = gastosData.filter((g) =>
     delAnio(fechaDe(g.fecha, g.created_at)),
   );
   const gastosTrimestre = gastosAnio.filter((g) =>
     delTrimestre(fechaDe(g.fecha, g.created_at)),
   );
-  const horas = (horasRes.data ?? []).filter((h) =>
-    delAnio(new Date(h.created_at)),
-  );
+  const horas = horasData.filter((h) => delAnio(new Date(h.created_at)));
 
   const ingresosEur = facturas.reduce((s, f) => s + (f.eur ?? 0), 0);
   const gastosEur = gastosAnio.reduce((s, g) => s + (g.eur ?? 0), 0);

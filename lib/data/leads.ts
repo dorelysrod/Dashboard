@@ -25,42 +25,11 @@ const SELECT_LEAD = `
   correos ( * )
 `;
 
-/**
- * Tamaño de lote para lecturas exhaustivas. Igual al `max_rows` por DEFECTO de
- * PostgREST (1000, no sobreescrito en supabase/config.toml): un select SIN
- * .range() no falla con >1000 filas — se TRUNCA en silencio a ese límite.
- * Toda lectura "completa" debe pedirse por lotes con .range() (T-007).
- */
-export const LOTE_LEADS = 1000;
-
-/** Resultado mínimo de un lote (subconjunto estructural de la respuesta PostgREST). */
-export interface ResultadoLote<T> {
-  data: T[] | null;
-  error: unknown;
-}
-
-/**
- * Lee TODAS las filas de una consulta pidiéndolas en lotes contiguos de
- * `lote` filas. `pedirLote` debe aplicar `.range(desde, hasta)` sobre una
- * consulta con ORDEN TOTAL ESTABLE (sin orden, PostgREST puede repetir o
- * saltar filas entre lotes). Termina cuando un lote llega corto; un error en
- * cualquier lote se propaga (nunca lista parcial silenciosa). Pura e
- * inyectable para testearla con un servidor falso que capa a 1000 (regresión
- * T-007: el select sin rango perdía filas a partir del lead #1001).
- */
-export async function obtenerTodasLasFilas<T>(
-  pedirLote: (desde: number, hasta: number) => PromiseLike<ResultadoLote<T>>,
-  lote = LOTE_LEADS,
-): Promise<T[]> {
-  const filas: T[] = [];
-  for (;;) {
-    const { data, error } = await pedirLote(filas.length, filas.length + lote - 1);
-    if (error) throw error;
-    const pagina = data ?? [];
-    filas.push(...pagina);
-    if (pagina.length < lote) return filas;
-  }
-}
+// Lectura por lotes: vive en lib/data/lotes.ts (T-008 la usa también en
+// resumen/fiscal/facturas/entregas; importarla de aquí crearía un ciclo
+// leads ↔ resumen). Se re-exporta para no romper a los consumidores.
+export { LOTE_LEADS, obtenerTodasLasFilas, type ResultadoLote } from "./lotes";
+import { obtenerTodasLasFilas, type ResultadoLote } from "./lotes";
 
 /**
  * TODOS los leads con relaciones, por lotes (correcto a cualquier escala, pero

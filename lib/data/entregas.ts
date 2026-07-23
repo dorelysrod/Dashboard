@@ -3,6 +3,7 @@ import type { EstadoEtapa } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
 import { mapearEtapa } from "./mapeo";
+import { obtenerTodasLasFilas, type ResultadoLote } from "./lotes";
 import { LEADS } from "./seed";
 
 /**
@@ -93,19 +94,24 @@ export async function obtenerEntregas(): Promise<Entrega[]> {
 
   const supabase = await crearClienteServidor();
 
-  const [proyectosRes, dispoRes] = await Promise.all([
-    supabase
-      .from("leads")
-      .select("id, negocio, esfuerzo_dias, etapa, tecnologia, cotizaciones(modulos, created_at)")
-      .in("etapa", ETAPAS_PROYECTO)
-      .order("esfuerzo_dias", { ascending: true }),
+  // Proyectos por LOTES (T-008): sin .range() se truncaba en silencio a 1000 y
+  // el plan de entregas ignoraría proyectos reales. `disponibilidad` son ≤7
+  // filas (una por día) — un select directo basta. No degradar en silencio:
+  // un error en cualquier lote o en dispo se propaga (sin este check, un fallo
+  // de `disponibilidad` calculaba fechas con el fallback lunes–viernes mientras
+  // el aviso de capacidad decía otra cosa).
+  const [proyectos, dispoRes] = await Promise.all([
+    obtenerTodasLasFilas<FilaProyecto>((desde, hasta) =>
+      supabase
+        .from("leads")
+        .select("id, negocio, esfuerzo_dias, etapa, tecnologia, cotizaciones(modulos, created_at)")
+        .in("etapa", ETAPAS_PROYECTO)
+        .order("esfuerzo_dias", { ascending: true })
+        .order("id", { ascending: true })
+        .range(desde, hasta) as unknown as PromiseLike<ResultadoLote<FilaProyecto>>,
+    ),
     supabase.from("disponibilidad").select("dia, horas"),
   ]);
-
-  // Igual que resumen.ts: no degradar en silencio. Sin este check, un fallo de
-  // `disponibilidad` calculaba todas las fechas con el fallback lunes–viernes
-  // mientras el aviso de capacidad decía otra cosa.
-  if (proyectosRes.error) throw proyectosRes.error;
   if (dispoRes.error) throw dispoRes.error;
 
   const diasHabiles = new Set(
@@ -115,7 +121,7 @@ export async function obtenerEntregas(): Promise<Entrega[]> {
   );
 
   const hoy = new Date();
-  return (proyectosRes.data as FilaProyecto[]).map((p) => {
+  return proyectos.map((p) => {
     const cotz = [...(p.cotizaciones ?? [])].sort((a, b) =>
       b.created_at.localeCompare(a.created_at),
     )[0];

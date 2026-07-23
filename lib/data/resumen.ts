@@ -4,6 +4,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
 import { aEur } from "@/lib/format";
 import { masReciente } from "./mapeo";
+import { obtenerTodasLasFilas, type ResultadoLote } from "./lotes";
 import { LEADS } from "./seed";
 
 /**
@@ -97,29 +98,37 @@ export async function obtenerResumen(): Promise<ResumenKpis> {
 
   const supabase = await crearClienteServidor();
 
-  const [leadsRes, correosRes, clientesRes, facturasRes] = await Promise.all([
+  // Por LOTES con orden estable (T-008): un select sin .range() se trunca en
+  // silencio al max_rows de PostgREST (1000) y estos KPIs saldrían MAL a partir
+  // de la fila #1001. Un error en cualquier lote se propaga (nunca KPIs de una
+  // lista parcial).
+  const [leads, correos, clientes, facturas] = await Promise.all([
     // pipelineEur se deriva de la cotización más reciente (total_eur), no de
     // leads.valor_eur: esa columna la llena solo el seed y guardarCotizacion
     // nunca la actualiza (quedaría stale). Fuente única: `cotizaciones`.
-    supabase
-      .from("leads")
-      .select("etapa, created_at, cotizaciones ( total_eur, created_at )"),
-    supabase.from("correos").select("aperturas, enviado_at"),
-    supabase.from("clientes").select("id, suscripcion_activa"),
-    supabase.from("facturas").select("eur, tipo, fecha, created_at"),
+    obtenerTodasLasFilas<LeadResumenRow>((desde, hasta) =>
+      supabase
+        .from("leads")
+        .select("etapa, created_at, cotizaciones ( total_eur, created_at )")
+        .order("id", { ascending: true })
+        .range(desde, hasta) as unknown as PromiseLike<ResultadoLote<LeadResumenRow>>,
+    ),
+    obtenerTodasLasFilas<{ aperturas: number; enviado_at: string | null }>((desde, hasta) =>
+      supabase.from("correos").select("aperturas, enviado_at").order("id", { ascending: true }).range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<{ aperturas: number; enviado_at: string | null }>
+      >,
+    ),
+    obtenerTodasLasFilas<{ id: string; suscripcion_activa: boolean | null }>((desde, hasta) =>
+      supabase.from("clientes").select("id, suscripcion_activa").order("id", { ascending: true }).range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<{ id: string; suscripcion_activa: boolean | null }>
+      >,
+    ),
+    obtenerTodasLasFilas<{ eur: number | null; tipo: string; fecha: string | null; created_at: string | null }>((desde, hasta) =>
+      supabase.from("facturas").select("eur, tipo, fecha, created_at").order("id", { ascending: true }).range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<{ eur: number | null; tipo: string; fecha: string | null; created_at: string | null }>
+      >,
+    ),
   ]);
-
-  // No degradar KPIs a "0" en silencio: si cualquiera de las queries falla
-  // (RLS, red, columna), se lanza en vez de reportar % abiertas / MRR = 0.
-  if (leadsRes.error) throw leadsRes.error;
-  if (correosRes.error) throw correosRes.error;
-  if (clientesRes.error) throw clientesRes.error;
-  if (facturasRes.error) throw facturasRes.error;
-
-  const leads = (leadsRes.data ?? []) as LeadResumenRow[];
-  const correos = correosRes.data ?? [];
-  const clientes = clientesRes.data ?? [];
-  const facturas = facturasRes.data ?? [];
 
   const ahora = new Date();
   const hace7dias = new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
