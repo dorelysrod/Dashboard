@@ -108,6 +108,17 @@ test("nichoDesdeRubro infiere el nicho del rubro libre de Buscar", () => {
   assert.equal(nichoDesdeRubro(undefined), "estetica");
 });
 
+test("filaALead propaga rating/resenas/etapaDb (resenas null → 0)", () => {
+  const conDatos = filaALead(baseFila({ rating: 4.9, resenas: 85 }));
+  assert.equal(conDatos.rating, 4.9);
+  assert.equal(conDatos.resenas, 85);
+  assert.equal(conDatos.etapaDb, "enviado");
+  // Fila sin rating/resenas: rating queda null (sin calificación), resenas 0.
+  const sinDatos = filaALead(baseFila({ rating: null, resenas: null }));
+  assert.equal(sinDatos.rating, null);
+  assert.equal(sinDatos.resenas, 0);
+});
+
 test("filaALead conserva el nicho de la fila y cae al base si falta", () => {
   const conNicho = filaALead(baseFila({ nicho: "turismo_dental" }));
   assert.equal(conNicho.nicho, "turismo_dental");
