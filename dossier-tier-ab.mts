@@ -28,8 +28,14 @@ async function retry<T>(fn: () => Promise<T>, n = 2): Promise<T> { let last: any
 
 async function main() {
   mkdirSync("salida", { recursive: true });
-  const { data: leads } = await sb.from("leads").select("id,negocio,ciudad,tier").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
-  log(`Dossier para ${leads?.length ?? 0} leads Tier A/B reales…`);
+  // SOLO_NUEVOS=1 (flujo diario): solo leads que aún no tienen dossier, para
+  // que la corrida diaria sea incremental y no re-investigue toda la base.
+  let q = sb.from("leads").select("id,negocio,ciudad,tier").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
+  if (process.env.SOLO_NUEVOS === "1") q = q.is("dossier", null);
+  // LIMITE: cupo por corrida (flujo diario) — Tier A primero, mejores primero.
+  if (process.env.LIMITE) q = q.order("tier").order("rating", { ascending: false, nullsFirst: false }).limit(Number(process.env.LIMITE));
+  const { data: leads } = await q;
+  log(`Dossier para ${leads?.length ?? 0} leads Tier A/B reales${process.env.SOLO_NUEVOS === "1" ? " (solo nuevos)" : ""}…`);
   const out: any[] = [];
   for (const [i, lead] of (leads ?? []).entries()) {
     let d: any;

@@ -46,8 +46,13 @@ const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,
 
 async function main() {
   mkdirSync("salida/contacto", { recursive: true });
-  const { data: leads } = await sb.from("leads").select("id,negocio,ciudad,tier,telefono,dossier").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
-  log(`Contacto+mensajes para ${leads?.length ?? 0} leads A/B…`);
+  // SOLO_NUEVOS=1 (flujo diario): solo leads sin mensajes generados todavía.
+  let q = sb.from("leads").select("id,negocio,ciudad,tier,telefono,dossier").in("tier", ["A", "B"]).not("negocio", "ilike", "%(test)%");
+  if (process.env.SOLO_NUEVOS === "1") q = q.is("mensajes", null);
+  // LIMITE: cupo por corrida (flujo diario) — Tier A primero.
+  if (process.env.LIMITE) q = q.order("tier").limit(Number(process.env.LIMITE));
+  const { data: leads } = await q;
+  log(`Contacto+mensajes para ${leads?.length ?? 0} leads A/B${process.env.SOLO_NUEVOS === "1" ? " (solo nuevos)" : ""}…`);
   const resumen: any[] = [];
   for (const [i, lead] of (leads ?? []).entries()) {
     let d: any = (lead as any).dossier;
