@@ -5,6 +5,7 @@ import type { EstadoFactura, EtapaLead, TierLead } from "@/lib/types/db";
 import type { Prospecto } from "@/lib/types/dominio";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/configurado";
+import { esNicho, mapearNicho } from "@/lib/data/mapeo";
 import { leerFx, leerPaqueteBaseMxn } from "@/lib/config";
 
 /**
@@ -245,13 +246,16 @@ export async function crearLeadDesdeProspecto(
     return { ok: false, error: "Ese negocio ya está en tu pipeline." };
   }
 
+  // El nicho llega del cliente: se valida contra el catálogo (fallback al base).
+  const nicho = esNicho(p.nicho) ? p.nicho : "estetica";
   const { error } = await supabase.from("leads").insert({
     negocio: p.nombre,
     ciudad: p.meta || null,
-    rubro: "Medicina estética",
+    rubro: mapearNicho(nicho).label,
     rating: p.rating,
     resenas: p.resenas,
     tier: tierDeSenal(p.senal),
+    nicho,
     etapa: "nuevo",
   });
   if (error) {

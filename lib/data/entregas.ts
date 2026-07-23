@@ -20,7 +20,9 @@ export interface Entrega {
   etapa: EstadoEtapa;
 }
 
-const ETAPAS_PROYECTO: EtapaLead[] = ["aceptado", "en_desarrollo", "entregado"];
+// Solo proyectos EN MARCHA: un lead 'entregado' se quedaba listado para
+// siempre con una fecha estimada futura recalculada cada día (ficticia).
+const ETAPAS_PROYECTO: EtapaLead[] = ["aceptado", "en_desarrollo"];
 
 /** Código de día (`disponibilidad`) → índice de getDay() (0=domingo). */
 const DIA_A_GETDAY: Record<DiaSemana, number> = {
@@ -100,7 +102,11 @@ export async function obtenerEntregas(): Promise<Entrega[]> {
     supabase.from("disponibilidad").select("dia, horas"),
   ]);
 
+  // Igual que resumen.ts: no degradar en silencio. Sin este check, un fallo de
+  // `disponibilidad` calculaba todas las fechas con el fallback lunes–viernes
+  // mientras el aviso de capacidad decía otra cosa.
   if (proyectosRes.error) throw proyectosRes.error;
+  if (dispoRes.error) throw dispoRes.error;
 
   const diasHabiles = new Set(
     (dispoRes.data ?? [])
@@ -131,6 +137,11 @@ export async function obtenerEntregas(): Promise<Entrega[]> {
 export async function diasPorSemana(): Promise<number> {
   if (!supabaseConfigurado()) return 5;
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.from("disponibilidad").select("dia, horas");
+  const { data, error } = await supabase
+    .from("disponibilidad")
+    .select("dia, horas");
+  // Ante error, lanzar: devolver 0 pintaba "0 días/semana de capacidad" junto
+  // a fechas calculadas con 5 días — datos contradictorios en la misma vista.
+  if (error) throw error;
   return (data ?? []).filter((d) => Number(d.horas) > 0).length;
 }
