@@ -76,6 +76,21 @@ async function main() {
     catch (e: any) { log(`   mensajes ${lead.negocio}: falló (${(e?.message||"").slice(0,50)})`); }
     if (!msg) log(`   ⚠ ${lead.negocio}: mensajes vacíos (el modelo no invocó la tool)`);
 
+    // Si el lead ya tiene maqueta con portal (numero+codigo), el correo y el
+    // WhatsApp salen LISTOS con link + código — anexado determinista, no se le
+    // pide a la IA (puede olvidarlo o inventarlo). En el flujo diario los mocks
+    // corren ANTES que este paso, así que los Tier A ya la tienen.
+    if (msg) {
+      const { data: maq } = await sb.from("maquetas").select("numero,codigo").eq("lead_id", lead.id).not("codigo", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (maq?.numero && maq?.codigo) {
+        const base = (process.env.PORTAL_BASE_URL || "").replace(/\/$/, "");
+        const url = base ? `${base}/p/${maq.numero}` : `/p/${maq.numero}`;
+        const bloque = `\n\nYa te preparé una demo de cómo podría verse tu web:\n${url}\nCódigo de acceso: ${maq.codigo}`;
+        msg.correo = (msg.correo || "") + bloque;
+        msg.whatsapp = (msg.whatsapp || "") + bloque;
+      }
+    }
+
     // Persiste dossier + mensajes en la DB → la Ficha los lee sin re-llamar la API.
     await sb.from("leads").update({ telefono: d.telefono, dossier: d, ...(msg ? { mensajes: msg } : {}) }).eq("id", lead.id);
     const contacto = [d.telefono && `📱 WhatsApp: ${d.telefono}`, d.instagram && `📷 IG: ${d.instagram}`, d.facebook && `📘 FB: ${d.facebook}`, d.email && `✉️ Email: ${d.email}`, d.direccion && `📍 ${d.direccion}`].filter(Boolean).join("\n");

@@ -83,7 +83,11 @@ export async function generarGuionVenta(
   const guion = await generarGuion(data.negocio, d);
   if (!guion) return { ok: false, error: "No se pudo generar el guion. Intenta de nuevo." };
 
-  await sb.from("leads").update({ guion }).eq("id", leadId);
+  // supabase-js no lanza: el error viene en el resultado. Sin esta comprobación
+  // un fallo de escritura devolvía ok:true y el guion (caro de generar) se
+  // perdía en silencio (T-015).
+  const { error: errGuion } = await sb.from("leads").update({ guion }).eq("id", leadId);
+  if (errGuion) return { ok: false, error: `El guion se generó pero no se pudo guardar: ${errGuion.message}. Reintenta (no se volverá a generar si ya quedó).` };
   return { ok: true, guion };
 }
 
@@ -112,6 +116,7 @@ export async function generarMensajesLead(
   const mensajes = await generarMensajes(data.negocio, data.ciudad, data.dossier);
   if (!mensajes) return { ok: false, error: "No se pudieron generar los mensajes. Intenta de nuevo." };
 
-  await sb.from("leads").update({ mensajes }).eq("id", leadId);
+  const { error: errMsj } = await sb.from("leads").update({ mensajes }).eq("id", leadId);
+  if (errMsj) return { ok: false, error: `Los mensajes se generaron pero no se pudieron guardar: ${errMsj.message}. Reintenta.` };
   return { ok: true, mensajes };
 }

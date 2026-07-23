@@ -93,11 +93,13 @@ async function main() {
   // 4. dossier OSINT solo para A/B nuevos, con cupo diario (gasta suscripción)
   if (pendiente("dossier")) correr("dossier", ["npx", "tsx", "dossier-tier-ab.mts"], { SOLO_NUEVOS: "1", LIMITE: String(config.dossiersPorDia ?? 15) });
 
-  // 5. mensajes de contacto solo para A/B sin mensajes, con cupo diario (gasta suscripción)
-  if (pendiente("contacto")) correr("contacto", ["npx", "tsx", "contacto-ab.mts"], { SOLO_NUEVOS: "1", LIMITE: String(config.contactosPorDia ?? 15) });
-
-  // 6. maquetas para los mejores Tier A sin maqueta (gasta suscripción)
+  // 5. maquetas para los mejores Tier A sin maqueta — ANTES que los mensajes,
+  //    para que el correo/WhatsApp salgan con el link del portal + código.
   if (pendiente("mocks")) correr("mocks", ["npx", "tsx", "mocks-tier-a.mts"], { MOCKS: String(config.mocksPorDia ?? 3) });
+
+  // 6. mensajes de contacto solo para A/B sin mensajes, con cupo diario
+  //    (gasta suscripción); anexa link+código de la maqueta si ya existe
+  if (pendiente("contacto")) correr("contacto", ["npx", "tsx", "contacto-ab.mts"], { SOLO_NUEVOS: "1", LIMITE: String(config.contactosPorDia ?? 15) });
 
   // 7. resumen del día (siempre se reescribe con el estado más fresco)
   await resumen();

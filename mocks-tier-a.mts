@@ -85,8 +85,17 @@ async function main() {
     if (!mock) { log("    ⚠ sin html"); continue; }
     writeFileSync(`salida/mocks/${slug(lead.negocio)}.html`, mock.html);
     const token = randomBytes(32).toString("base64url");
-    const { error: e2 } = await sb.from("maquetas").insert({ lead_id: lead.id, token, titulo: mock.titulo, html: mock.html, origen: mock.origen, url_fuente: lead.sitio_web, expira_at: new Date(Date.now() + 14 * 86400e3).toISOString() });
-    if (e2) log(`    ⚠ Supabase: ${e2.message}`); else { ok++; log(`    ✓ maqueta guardada (/maqueta/${token.slice(0, 10)}…)`); }
+    // `codigo` deja la maqueta lista para el PORTAL /p/[numero] (candado
+    // email+código): sin él, la página del portal la trata como no disponible
+    // y el correo de outreach no puede incluir link + código.
+    const abc = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let codigo = ""; for (const b of randomBytes(6)) codigo += abc[b % abc.length];
+    const { data: ins, error: e2 } = await sb
+      .from("maquetas")
+      .insert({ lead_id: lead.id, token, codigo, titulo: mock.titulo, html: mock.html, origen: mock.origen, url_fuente: lead.sitio_web, expira_at: new Date(Date.now() + 14 * 86400e3).toISOString() })
+      .select("numero")
+      .single();
+    if (e2) log(`    ⚠ Supabase: ${e2.message}`); else { ok++; log(`    ✓ maqueta guardada — portal /p/${ins?.numero} · código ${codigo}`); }
   }
   log(`LISTO. ${ok}/${pendientes.length} maquetas nuevas.`);
 }
