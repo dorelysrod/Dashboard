@@ -13,6 +13,9 @@ export const LEADS: Lead[] = [
     meta: "CDMX · Medicina estética",
     nicho: "estetica",
     etapa: { css: "st-env", label: "Cotización enviada" },
+    etapaDb: "enviado",
+    rating: 5.0,
+    resenas: 62,
     tecnologia: "Wix",
     hosting: "Wix",
     mejoras:
@@ -34,6 +37,9 @@ export const LEADS: Lead[] = [
     meta: "Tijuana · Medicina estética",
     nicho: "estetica",
     etapa: { css: "st-ab", label: "Abierta" },
+    etapaDb: "abierto",
+    rating: 4.6,
+    resenas: 34,
     tecnologia: "WordPress",
     hosting: "cPanel",
     mejoras:
@@ -54,6 +60,11 @@ export const LEADS: Lead[] = [
     meta: "CDMX · Medicina estética",
     nicho: "estetica",
     etapa: { css: "st-env", label: "Cotización enviada" },
+    etapaDb: "enviado",
+    // 5.0 pero pocas reseñas: pasa el filtro 'Mejores calificados' (rating ≥
+    // 4.5) sin ganar el distintivo (exige ≥ 10 reseñas).
+    rating: 5.0,
+    resenas: 8,
     tecnologia: "Instagram / Linktree",
     hosting: "—",
     mejoras: "Sin sitio propio, solo IG. 5.0★, owner-operated.",
@@ -73,6 +84,11 @@ export const LEADS: Lead[] = [
     meta: "Cancún · Medicina estética",
     nicho: "estetica",
     etapa: { css: "st-ab", label: "Abierta" },
+    etapaDb: "abierto",
+    // Muchas reseñas pero rating bajo el umbral: 'Con reseñas' sí, 'Mejores
+    // calificados' no.
+    rating: 4.4,
+    resenas: 712,
     tecnologia: "WordPress + Elementor",
     hosting: "Hosting compartido",
     mejoras:
@@ -93,6 +109,11 @@ export const LEADS: Lead[] = [
     meta: "Monterrey · Medicina estética",
     nicho: "estetica",
     etapa: { css: "st-new", label: "Inspeccionado" },
+    etapaDb: "inspeccionado",
+    // Empata rating 5.0 con lead-1 y lead-3: el desempate por reseñas ordena
+    // lead-5 (75) > lead-1 (62) > lead-3 (8).
+    rating: 5.0,
+    resenas: 75,
     tecnologia: "Por inspeccionar",
     hosting: "—",
     mejoras: "5.0★ / 75 reseñas. Owner-operated, buen margen.",
@@ -104,6 +125,29 @@ export const LEADS: Lead[] = [
     clics: 0,
     vioCotizacion: 0,
     correo: "(pendiente de generar)",
+  },
+  {
+    // Lead recién capturado: sin rating ni reseñas y etapa 'nuevo' — queda
+    // FUERA de los 3 filtros de calidad y sin distintivo (demo del fallback).
+    id: "lead-6",
+    nombre: "Spa Marina Denté",
+    meta: "Mérida · Medicina estética",
+    nicho: "estetica",
+    etapa: { css: "st-new", label: "Nuevo" },
+    etapaDb: "nuevo",
+    rating: null,
+    resenas: 0,
+    tecnologia: "Por inspeccionar",
+    hosting: "—",
+    mejoras: "Capturado de Maps; aún sin inspección.",
+    recomendacion: "",
+    mxn: 0,
+    modulos: [],
+    esfuerzoDias: 0,
+    aperturas: 0,
+    clics: 0,
+    vioCotizacion: 0,
+    correo: "",
   },
 ];
 

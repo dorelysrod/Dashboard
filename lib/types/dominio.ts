@@ -5,6 +5,8 @@
  * materializa en las migraciones de M1/Supabase.
  */
 
+import type { EtapaLead } from "./db";
+
 /** Clase de estilo de la etapa (tokens del mockup). */
 export type EtapaCss = "st-env" | "st-ab" | "st-ac" | "st-dev" | "st-new";
 
@@ -44,6 +46,16 @@ export interface Lead {
   meta: string;
   nicho: Nicho;
   etapa: EstadoEtapa;
+  /**
+   * Etapa cruda de BD (enum `etapa_lead`); `etapa` es su presentación visual.
+   * Necesaria para filtrar por avance del pipeline en modo seed (paridad con
+   * el filtro server-side de Supabase).
+   */
+  etapaDb: EtapaLead;
+  /** Calificación de Google Maps (1.0–5.0, 1 decimal). null = sin calificación. */
+  rating: number | null;
+  /** Número de reseñas en Google Maps (0 si no se conoce; nunca null). */
+  resenas: number;
   tecnologia: string;
   hosting: string;
   /** Qué mejorar (texto plano). */
