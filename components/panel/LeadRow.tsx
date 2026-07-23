@@ -3,11 +3,16 @@
 import type { Lead } from "@/lib/types/dominio";
 import { aEur, etiquetaScore, fE, fM } from "@/lib/format";
 import { mapearNicho } from "@/lib/data/mapeo";
+import { meritaDistintivoCalificado } from "@/lib/data/filtros-leads";
 import { useLeadDrawer } from "./drawer-context";
 
 /**
  * Fila de lead (pipeline + leads calientes). Reemplaza leadRow()/onclick del
  * mockup: abre el drawer vía contexto. `mostrarEtapa` alterna etapa vs score.
+ *
+ * Distintivo "mejor calificado": estrella dorada visible SIEMPRE para leads
+ * con rating ≥ 4.5 y ≥ 10 reseñas (spec CA #9), independientemente del filtro
+ * activo. La estrella lleva aria-hidden; el badge incluye aria-label completo.
  */
 export function LeadRow({
   lead,
@@ -20,6 +25,7 @@ export function LeadRow({
   const eur = aEur(lead.mxn);
   const score = etiquetaScore(eur, lead.esfuerzoDias);
   const nicho = mapearNicho(lead.nicho);
+  const esCalificado = meritaDistintivoCalificado(lead);
 
   return (
     <div
@@ -59,6 +65,15 @@ export function LeadRow({
             </span>
           ) : (
             <span className="opens">—</span>
+          )}
+          {esCalificado && (
+            <span
+              className="badge-calificado"
+              aria-label={`Calificación ${lead.rating!.toFixed(1)}, ${lead.resenas} reseñas`}
+            >
+              <span aria-hidden="true">★</span>
+              {lead.rating!.toFixed(1)}
+            </span>
           )}
           <span className={`nicho ${nicho.css}`}>{nicho.label}</span>
           {mostrarEtapa ? (
