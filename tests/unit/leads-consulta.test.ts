@@ -50,6 +50,19 @@ test("calificados: filtra rating ≥ 4.5 y ordena rating desc, resenas desc, emp
   assert.deepEqual(resultado.map((l) => l.id), ["a", "c", "e", "b", "g"]);
 });
 
+test("calificados: resenas 0 (null en BD) queda al FINAL de su grupo de rating (paridad NULLS LAST)", () => {
+  // Regression T-006: in Supabase, `resenas IS NULL` must sort last within a
+  // rating tie (ORDER BY resenas DESC NULLS LAST); seed mode maps null → 0.
+  // A 4.9-rated lead without reviews goes after every 4.9 lead WITH reviews.
+  const grupo = [
+    lead("z", "turismo_dental", "nuevo", 4.9, 0),
+    lead("y", "turismo_dental", "nuevo", 4.9, 85),
+    lead("x", "turismo_dental", "nuevo", 4.9, 120),
+  ];
+  const resultado = filtrarYOrdenarLeads(grupo, { calificados: true });
+  assert.deepEqual(resultado.map((l) => l.id), ["x", "y", "z"]);
+});
+
 test("conResenas: excluye resenas 0 sin reordenar", () => {
   const resultado = filtrarYOrdenarLeads(BASE, { conResenas: true });
   assert.deepEqual(resultado.map((l) => l.id), ["a", "b", "c", "e", "f", "g"]);
