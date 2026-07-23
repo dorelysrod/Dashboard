@@ -502,6 +502,24 @@ td {
   border-bottom: none;
 }
 
+/*
+ * Distintivo "mejor calificado" (LeadRow): rating ≥ 4.5 y ≥ 10 reseñas.
+ * Siempre visible con o sin filtro activo. Coherente con .nicho/.stage.
+ * Color: --amber-dark (#6b3d06) sobre --amber-s (#fbf0dd) → contraste 7.2:1 ✓
+ */
+.badge-calificado {
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--amber-s);
+  color: #6b3d06;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
 /* nicho: badge en filas/drawer + chips de filtro (pipeline y buscar) */
 .nicho {
   font-size: 0.66rem;

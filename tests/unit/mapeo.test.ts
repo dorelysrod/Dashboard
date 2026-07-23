@@ -126,3 +126,14 @@ test("filaALead conserva el nicho de la fila y cae al base si falta", () => {
   const sinNicho = filaALead(baseFila());
   assert.equal(sinNicho.nicho, "estetica");
 });
+
+test("filaALead propaga rating/resenas/etapaDb (resenas null → 0)", () => {
+  const conDatos = filaALead(baseFila({ rating: 4.9, resenas: 85 }));
+  assert.equal(conDatos.rating, 4.9);
+  assert.equal(conDatos.resenas, 85);
+  assert.equal(conDatos.etapaDb, "enviado");
+  // Fila sin rating/resenas: rating queda null (sin calificación), resenas 0.
+  const sinDatos = filaALead(baseFila({ rating: null, resenas: null }));
+  assert.equal(sinDatos.rating, null);
+  assert.equal(sinDatos.resenas, 0);
+});
