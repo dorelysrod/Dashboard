@@ -1,14 +1,18 @@
-import { obtenerLeads } from "@/lib/data/leads";
+import { obtenerLeadsAccionables, obtenerLeadsCalientes } from "@/lib/data/leads";
 import { accionesDeHoy, obtenerResumen } from "@/lib/data/resumen";
 import { LeadRow } from "@/components/panel/LeadRow";
 import { fE } from "@/lib/format";
 
 export default async function ResumenPage() {
-  const [kpis, leads] = await Promise.all([obtenerResumen(), obtenerLeads()]);
-  const calientes = [...leads]
-    .sort((a, b) => b.aperturas - a.aperturas || b.mxn - a.mxn)
-    .slice(0, 4);
-  const acciones = accionesDeHoy(leads);
+  // T-007: nada de obtenerLeads() sin límite (se truncaba a 1000 y cargaba
+  // todas las relaciones por request). Calientes ya viene top-4 del servicio y
+  // las acciones se derivan solo de los leads en etapas accionables.
+  const [kpis, calientes, accionables] = await Promise.all([
+    obtenerResumen(),
+    obtenerLeadsCalientes(4),
+    obtenerLeadsAccionables(),
+  ]);
+  const acciones = accionesDeHoy(accionables);
 
   return (
     <section className="view">

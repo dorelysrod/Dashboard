@@ -1,6 +1,6 @@
 import type { Nicho, Prospecto } from "@/lib/types/dominio";
 import { PROSPECTOS } from "./seed";
-import { obtenerLeads } from "./leads";
+import { obtenerNombresLeads } from "./leads";
 import { filtrarNuevos } from "./dedupe";
 import { nichoDesdeRubro } from "./mapeo";
 import { modoIAActivo } from "@/lib/ai";
@@ -40,8 +40,9 @@ export async function buscarProspectos(
   ciudad: string,
   rubro: string,
 ): Promise<Prospecto[]> {
-  const leads = await obtenerLeads();
-  const nombres = leads.map((l) => l.nombre);
+  // Solo nombres (columna `negocio` por lotes): el dedupe no necesita leads
+  // completos ni relaciones, y el select sin rango se truncaba a 1000 (T-007).
+  const nombres = await obtenerNombresLeads();
 
   // Modo real: descubrimiento por web vía el harness. Import perezoso (server-only).
   // Pasa los nombres existentes como EXCLUSIÓN → el modelo no los busca ni reporta

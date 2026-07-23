@@ -4,6 +4,7 @@ import { supabaseConfigurado } from "@/lib/supabase/configurado";
 import { filaALead, type LeadConRelaciones } from "./mapeo";
 import { ETAPAS_INSPECCIONADAS, UMBRAL_RATING_CALIFICADO } from "./filtros-leads";
 import { filtrarYOrdenarLeads, type FiltrosCalidadLeads } from "./leads-consulta";
+import { ETAPAS_ACCIONABLES } from "./resumen";
 import { acotarPagina, paginar, POR_PAGINA, totalPaginas, type Paginado } from "./paginacion";
 import { LEADS } from "./seed";
 
@@ -24,17 +25,121 @@ const SELECT_LEAD = `
   correos ( * )
 `;
 
-export async function obtenerLeads(): Promise<Lead[]> {
+/**
+ * Tamaño de lote para lecturas exhaustivas. Igual al `max_rows` por DEFECTO de
+ * PostgREST (1000, no sobreescrito en supabase/config.toml): un select SIN
+ * .range() no falla con >1000 filas — se TRUNCA en silencio a ese límite.
+ * Toda lectura "completa" debe pedirse por lotes con .range() (T-007).
+ */
+export const LOTE_LEADS = 1000;
+
+/** Resultado mínimo de un lote (subconjunto estructural de la respuesta PostgREST). */
+export interface ResultadoLote<T> {
+  data: T[] | null;
+  error: unknown;
+}
+
+/**
+ * Lee TODAS las filas de una consulta pidiéndolas en lotes contiguos de
+ * `lote` filas. `pedirLote` debe aplicar `.range(desde, hasta)` sobre una
+ * consulta con ORDEN TOTAL ESTABLE (sin orden, PostgREST puede repetir o
+ * saltar filas entre lotes). Termina cuando un lote llega corto; un error en
+ * cualquier lote se propaga (nunca lista parcial silenciosa). Pura e
+ * inyectable para testearla con un servidor falso que capa a 1000 (regresión
+ * T-007: el select sin rango perdía filas a partir del lead #1001).
+ */
+export async function obtenerTodasLasFilas<T>(
+  pedirLote: (desde: number, hasta: number) => PromiseLike<ResultadoLote<T>>,
+  lote = LOTE_LEADS,
+): Promise<T[]> {
+  const filas: T[] = [];
+  for (;;) {
+    const { data, error } = await pedirLote(filas.length, filas.length + lote - 1);
+    if (error) throw error;
+    const pagina = data ?? [];
+    filas.push(...pagina);
+    if (pagina.length < lote) return filas;
+  }
+}
+
+/**
+ * TODOS los leads con relaciones, por lotes (correcto a cualquier escala, pero
+ * O(n) memoria y payload). NO exportado (T-007): toda lista de UI pasa por
+ * `obtenerLeadsPagina`; esto queda como último recurso para agregaciones que
+ * ordenan en memoria por campos DERIVADOS de relaciones (leads calientes:
+ * aperturas/mxn salen del correo/cotización más recientes, no ordenables en
+ * PostgREST sin vista/RPC — ver ticket de seguimiento).
+ */
+async function obtenerLeadsCompletos(): Promise<Lead[]> {
   if (!supabaseConfigurado()) return LEADS;
 
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase
-    .from("leads")
-    .select(SELECT_LEAD)
-    .order("created_at", { ascending: true });
+  const filas = await obtenerTodasLasFilas<LeadConRelaciones>(
+    (desde, hasta) =>
+      supabase
+        .from("leads")
+        .select(SELECT_LEAD)
+        .order("created_at", { ascending: true })
+        // id (PK) como desempate: created_at puede empatar y el paginado por
+        // lotes exige orden total estable (si no, filas duplicadas/saltadas).
+        .order("id", { ascending: true })
+        .range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<LeadConRelaciones>
+      >,
+  );
+  return filas.map(filaALead);
+}
 
-  if (error) throw error;
-  return (data as LeadConRelaciones[]).map(filaALead);
+/**
+ * Solo los NOMBRES de negocio de todos los leads (dedupe de Buscar). Pide
+ * únicamente la columna `negocio` por lotes: sin relaciones embebidas ni
+ * payload gigante, y sin el truncamiento a 1000 del select sin rango (bug
+ * T-007: a partir del lead #1001 el dedupe dejaba de ver leads y Buscar
+ * volvía a sugerir prospectos ya en el pipeline).
+ */
+export async function obtenerNombresLeads(): Promise<string[]> {
+  if (!supabaseConfigurado()) return LEADS.map((l) => l.nombre);
+
+  const supabase = await crearClienteServidor();
+  const filas = await obtenerTodasLasFilas<{ negocio: string }>(
+    (desde, hasta) =>
+      supabase
+        .from("leads")
+        .select("negocio")
+        .order("id", { ascending: true })
+        .range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<{ negocio: string }>
+      >,
+  );
+  return filas.map((f) => f.negocio);
+}
+
+/**
+ * Leads que pueden generar una "Acción de hoy" (Resumen). Acota la query
+ * server-side a ETAPAS_ACCIONABLES en vez de cargar todo el pipeline con
+ * relaciones por request (T-007); `accionesDeHoy` solo produce acciones para
+ * esas etapas, así que el filtro no cambia el resultado (test de equivalencia
+ * en tests/unit/resumen-acciones.test.ts). Fallback seed: mismo predicado
+ * sobre `etapaDb` (paridad de modos).
+ */
+export async function obtenerLeadsAccionables(): Promise<Lead[]> {
+  if (!supabaseConfigurado())
+    return LEADS.filter((l) => ETAPAS_ACCIONABLES.includes(l.etapaDb));
+
+  const supabase = await crearClienteServidor();
+  const filas = await obtenerTodasLasFilas<LeadConRelaciones>(
+    (desde, hasta) =>
+      supabase
+        .from("leads")
+        .select(SELECT_LEAD)
+        .in("etapa", ETAPAS_ACCIONABLES as unknown as string[])
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(desde, hasta) as unknown as PromiseLike<
+        ResultadoLote<LeadConRelaciones>
+      >,
+  );
+  return filas.map(filaALead);
 }
 
 export interface FiltroLeads extends FiltrosCalidadLeads {
@@ -176,9 +281,14 @@ export async function obtenerLead(id: string): Promise<Lead | undefined> {
   return data ? filaALead(data as LeadConRelaciones) : undefined;
 }
 
-/** Leads calientes ordenados por aperturas y luego por dinero (mockup: #hot). */
+/**
+ * Leads calientes ordenados por aperturas y luego por dinero (mockup: #hot).
+ * Orden en memoria sobre el set completo por lotes (aperturas/mxn son campos
+ * derivados de relaciones, no ordenables en PostgREST): correcto a cualquier
+ * escala pero O(n); empujar este top-N a una vista/RPC es ticket aparte.
+ */
 export async function obtenerLeadsCalientes(limite = 4): Promise<Lead[]> {
-  const leads = await obtenerLeads();
+  const leads = await obtenerLeadsCompletos();
   return [...leads]
     .sort((a, b) => b.aperturas - a.aperturas || b.mxn - a.mxn)
     .slice(0, limite);
