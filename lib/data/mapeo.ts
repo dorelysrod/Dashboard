@@ -105,6 +105,7 @@ export function filaALead(fila: LeadConRelaciones): Lead {
     etapaDb: fila.etapa,
     rating: fila.rating ?? null,
     resenas: fila.resenas ?? 0,
+    tier: fila.tier ?? null,
     tecnologia: inspeccion?.tecnologia ?? fila.tecnologia ?? "",
     hosting: inspeccion?.hosting ?? "",
     mejoras: inspeccion?.mejoras?.join(" · ") ?? "",

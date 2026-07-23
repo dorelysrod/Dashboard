@@ -5,7 +5,7 @@
  * materializa en las migraciones de M1/Supabase.
  */
 
-import type { EtapaLead } from "./db";
+import type { EtapaLead, TierLead } from "./db";
 
 /** Clase de estilo de la etapa (tokens del mockup). */
 export type EtapaCss = "st-env" | "st-ab" | "st-ac" | "st-dev" | "st-new";
@@ -56,6 +56,12 @@ export interface Lead {
   rating: number | null;
   /** Número de reseñas en Google Maps (0 si no se conoce; nunca null). */
   resenas: number;
+  /**
+   * Tier del motor de calificación (A/B/C, lib/data/scoring.ts). Opcional:
+   * los seeds y leads sin calificar no lo traen. C = descalificado para venta
+   * (el filtro 'Mejores calificados' y el distintivo ★ lo excluyen).
+   */
+  tier?: TierLead | null;
   tecnologia: string;
   hosting: string;
   /** Qué mejorar (texto plano). */

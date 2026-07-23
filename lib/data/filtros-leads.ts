@@ -1,4 +1,4 @@
-import type { EtapaLead } from "@/lib/types/db";
+import type { EtapaLead, TierLead } from "@/lib/types/db";
 
 /**
  * Lógica PURA de los filtros de calidad del pipeline y del distintivo
@@ -18,6 +18,15 @@ export const MIN_RESENAS_DISTINTIVO = 10;
 export interface CalificacionLead {
   rating: number | null;
   resenas: number | null;
+  /**
+   * Tier del motor de calificación (lib/data/scoring.ts). El rating de Google
+   * mide SATISFACCIÓN DE CLIENTES; el tier mide OPORTUNIDAD DE VENTA (brecha
+   * web, cadena, etc.) — van en direcciones opuestas a menudo: la clínica 4.9★
+   * suele tener ya una web fuerte → C/descalificado. Opcional: los seeds y los
+   * leads aún sin calificar no lo traen (undefined/null = sin veredicto aún,
+   * NO cuenta como descalificado).
+   */
+  tier?: TierLead | null;
 }
 
 /**
@@ -35,9 +44,19 @@ export const ETAPAS_INSPECCIONADAS: readonly EtapaLead[] = [
   "entregado",
 ];
 
-/** Filtro 'Mejores calificados': rating no nulo y ≥ 4.5. */
+/**
+ * Filtro 'Mejores calificados': rating no nulo y ≥ 4.5, EXCLUYENDO Tier C
+ * (ya descalificado por el motor: web fuerte, cadena, reputación baja). Sin
+ * esto el filtro mostraba leads con rating alto que la inspección descartaba
+ * después — tiempo perdido de la operadora. Tier null/undefined pasa: aún no
+ * hay veredicto.
+ */
 export function esMejorCalificado(lead: CalificacionLead): boolean {
-  return lead.rating != null && lead.rating >= UMBRAL_RATING_CALIFICADO;
+  return (
+    lead.rating != null &&
+    lead.rating >= UMBRAL_RATING_CALIFICADO &&
+    lead.tier !== "C"
+  );
 }
 
 /** Filtro 'Con reseñas': resenas > 0 (null cuenta como 0). */

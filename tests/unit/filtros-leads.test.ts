@@ -76,3 +76,22 @@ test("meritaDistintivoCalificado exige rating ≥ 4.5 Y resenas ≥ 10", () => {
   assert.equal(meritaDistintivoCalificado({ rating: null, resenas: 100 }), false);
   assert.equal(meritaDistintivoCalificado({ rating: 5.0, resenas: null }), false);
 });
+
+// El rating de Google mide satisfacción de clientes; el tier del motor mide
+// oportunidad de venta (brecha web, cadena…). Sin excluir Tier C, el filtro
+// mostraba clínicas 4.9★ que la inspección descartaba después (web fuerte).
+test("esMejorCalificado excluye Tier C (descalificado) aunque el rating sea alto", () => {
+  assert.equal(esMejorCalificado({ rating: 4.9, resenas: 200, tier: "C" }), false);
+  assert.equal(esMejorCalificado({ rating: 4.9, resenas: 200, tier: "A" }), true);
+  assert.equal(esMejorCalificado({ rating: 4.9, resenas: 200, tier: "B" }), true);
+});
+
+test("tier null/ausente (sin veredicto aún) NO cuenta como descalificado", () => {
+  assert.equal(esMejorCalificado({ rating: 4.7, resenas: 30, tier: null }), true);
+  assert.equal(esMejorCalificado({ rating: 4.7, resenas: 30 }), true);
+});
+
+test("el distintivo ★ tampoco se muestra para Tier C", () => {
+  assert.equal(meritaDistintivoCalificado({ rating: 5.0, resenas: 80, tier: "C" }), false);
+  assert.equal(meritaDistintivoCalificado({ rating: 5.0, resenas: 80, tier: "A" }), true);
+});

@@ -128,6 +128,7 @@ interface ConsultaFiltrable {
   gte(columna: string, valor: number): this;
   gt(columna: string, valor: number): this;
   in(columna: string, valores: readonly string[]): this;
+  or(condiciones: string): this;
 }
 
 /**
@@ -158,7 +159,13 @@ function aplicarFiltrosLeads<Q>(consulta: Q, filtro: FiltroLeads): Q {
   // así que el encadenado es seguro y el call-site conserva su tipo exacto.
   let c = consulta as ConsultaFiltrable;
   if (filtro.nicho) c = c.eq("nicho", filtro.nicho);
-  if (filtro.calificados) c = c.gte("rating", UMBRAL_RATING_CALIFICADO);
+  if (filtro.calificados) {
+    c = c.gte("rating", UMBRAL_RATING_CALIFICADO);
+    // Excluir Tier C (descalificado por el motor) SIN excluir tier NULL (aún
+    // sin veredicto): `.neq("tier","C")` a secas descartaría los NULL porque
+    // en SQL `NULL <> 'C'` es NULL → falso. Espejo de `esMejorCalificado`.
+    c = c.or("tier.is.null,tier.neq.C");
+  }
   if (filtro.conResenas) c = c.gt("resenas", 0);
   if (filtro.inspeccionados) c = c.in("etapa", ETAPAS_INSPECCIONADAS);
   return c as Q;
