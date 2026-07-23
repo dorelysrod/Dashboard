@@ -87,22 +87,35 @@ La ruta ingenua (mi app OAuth pidiendo scopes de GBP/GA4 a cada cliente)
 choca con la **verificación de apps de Google**: semanas de proceso, scopes
 sensibles, revisión de seguridad. La ruta de agencia lo evita por completo:
 
-- **F0–F1: acceso por rol, no por API-app.** El cliente me agrega como
+- **Acceso por rol, no por API-app del cliente.** El cliente me agrega como
   **administradora de su Perfil de Negocio** y **lectora de su GA4** (práctica
   estándar de agencias, 5 minutos guiados por WhatsApp — y refuerza el gancho
-  de soporte). Con eso YO leo sus datos con MI cuenta: manualmente (F0) o con
-  las APIs usando mis propias credenciales (F1). Cero verificación OAuth,
-  cero tokens del cliente en mi base.
-- **F2 (solo si escala lo exige)**: app OAuth propia con scopes mínimos, para
-  que el onboarding no dependa de mí. Recién ahí entra la verificación.
+  de soporte). Con eso, UN solo consentimiento OAuth de MI cuenta (una vez en
+  la vida) lee las métricas de TODOS mis clientes.
+- **Automatizado de punta a punta desde el día 1**: la ingesta es una etapa
+  más del flujo diario en launchd → tabla `metricas` → semáforo de fugas →
+  narrativa IA → publicación en `/m/[numero]`. Los ÚNICOS momentos humanos,
+  por diseño: (a) onboarding por cliente, una vez, ~5 min (él me da acceso —
+  es su cuenta, nadie puede automatizar eso; se guía con página de
+  instrucciones + WhatsApp, que ES el gancho de soporte en acción), y
+  (b) aprobar la narrativa mensual (~5 min, un botón; auto-envío cuando el
+  sistema demuestre confianza).
+- **Gotcha OAuth que decide la automatización**: mi app de Google Cloud debe
+  estar en modo **producción** aunque sin verificar (pantalla de advertencia
+  que YO acepto una vez; hasta 100 usuarios y la única soy yo) → refresh
+  token de larga vida. En modo "testing" el token caduca cada 7 días y
+  obligaría a re-autorizar a mano — inaceptable. La Business Profile API
+  además pide un formulario de acceso (se aprueba en días para agencias):
+  hacerlo ANTES de construir la ingesta.
+- **F2 (solo si escala lo exige)**: app OAuth verificada para que el cliente
+  conecte solo, sin darme rol. Recién ahí entra la verificación de Google.
 
 ### Fases con puertas de validación
 
 | Fase | Qué construyo | Puerta para avanzar |
 |---|---|---|
-| **F0** (días) | Página `/m/[numero]` reusando el portal (candado + vistas + modo dueña). Datos pegados a mano del export de GBP. 3 clientes piloto, gratis 1 mes. | ≥2 de 3 lo abren >1 vez y aceptan pagar |
-| **F1** (1–2 semanas) | Tabla `metricas` en Supabase + ingesta con MIS credenciales (GBP Performance API primero; GA4/GSC después) + semáforo de fugas + benchmark del nicho + narrativa IA aprobada por mí. Cobro vía factura `suscripcion` (ya existe en el schema). | ≥10 suscriptores pagando y ≤30 min/cliente/mes reales |
-| **F2** | Onboarding self-service (OAuth verificado), alertas push/WhatsApp, PDF mensual. | El tiempo de onboarding es el cuello de botella |
+| **F1** (1–2 semanas) | Página `/m/[numero]` reusando el portal (candado + vistas + modo dueña) + tabla `metricas` + ingesta automática con MIS credenciales (GBP Performance API primero; GA4/GSC después) + semáforo de fugas + benchmark del nicho + narrativa IA con botón de aprobación. 3 clientes piloto gratis 1 mes; el tracking de vistas dice objetivamente si lo abren. Cobro vía factura `suscripcion` (ya existe en el schema). | ≥2 de 3 pilotos lo abren >1 vez y aceptan pagar; ≤30 min/cliente/mes reales |
+| **F2** | Onboarding self-service (OAuth verificado), alertas push/WhatsApp, PDF mensual, auto-envío de narrativa. | El onboarding manual es el cuello de botella (>~30 clientes) |
 
 Todo reusa lo construido: portal con candado y tracking de vistas, modo
 dueña, Supabase con RLS, detector de tecnología, base de benchmark, motor de
