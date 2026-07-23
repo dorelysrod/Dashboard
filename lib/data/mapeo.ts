@@ -5,7 +5,7 @@ import type {
   InspeccionRow,
   LeadRow,
 } from "@/lib/types/db";
-import type { EstadoEtapa, Lead } from "@/lib/types/dominio";
+import type { EstadoEtapa, EstadoNicho, Lead, Nicho } from "@/lib/types/dominio";
 
 /**
  * Mapeo modelo normalizado (Supabase) → vista plana `Lead` que pinta la UI.
@@ -29,6 +29,44 @@ const ETAPA_A_ESTADO: Record<EtapaLead, EstadoEtapa> = {
 
 export function mapearEtapa(etapa: EtapaLead): EstadoEtapa {
   return ETAPA_A_ESTADO[etapa];
+}
+
+/** Nichos comerciales (enum `nicho_lead`) → badge del panel. */
+const NICHO_A_ESTADO: Record<Nicho, EstadoNicho> = {
+  estetica: { css: "ni-est", label: "Medicina estética" },
+  turismo_dental: { css: "ni-dent", label: "Turismo dental" },
+  bodas_venues: { css: "ni-bodas", label: "Bodas y venues" },
+  tour_operadores: { css: "ni-tour", label: "Tour operadores" },
+};
+
+/** Orden de presentación de los chips de filtro (el nicho base primero). */
+export const NICHOS: readonly Nicho[] = [
+  "estetica",
+  "turismo_dental",
+  "bodas_venues",
+  "tour_operadores",
+];
+
+export function mapearNicho(nicho: Nicho): EstadoNicho {
+  return NICHO_A_ESTADO[nicho];
+}
+
+/** ¿Es un valor de nicho válido? (valida searchParams y datos de BD). */
+export function esNicho(valor: string | null | undefined): valor is Nicho {
+  return valor != null && valor in NICHO_A_ESTADO;
+}
+
+/**
+ * Infiere el nicho desde el rubro libre que escribe el operador en Buscar
+ * (p. ej. "clínica dental para extranjeros" → turismo_dental). Fallback: el
+ * nicho base. Puro, para poder testearlo.
+ */
+export function nichoDesdeRubro(rubro: string | null | undefined): Nicho {
+  const r = (rubro ?? "").toLowerCase();
+  if (/dental|dentista|odonto/.test(r)) return "turismo_dental";
+  if (/boda|venue|jard[ií]n|banquete|hacienda/.test(r)) return "bodas_venues";
+  if (/tour|excursi[oó]n|operador|agencia de viajes/.test(r)) return "tour_operadores";
+  return "estetica";
 }
 
 /** Devuelve el elemento más reciente por `created_at` (o undefined si vacío). */
@@ -62,7 +100,11 @@ export function filaALead(fila: LeadConRelaciones): Lead {
     id: fila.id,
     nombre: fila.negocio,
     meta,
+    nicho: esNicho(fila.nicho) ? fila.nicho : "estetica",
     etapa: mapearEtapa(fila.etapa),
+    etapaDb: fila.etapa,
+    rating: fila.rating ?? null,
+    resenas: fila.resenas ?? 0,
     tecnologia: inspeccion?.tecnologia ?? fila.tecnologia ?? "",
     hosting: inspeccion?.hosting ?? "",
     mejoras: inspeccion?.mejoras?.join(" · ") ?? "",
@@ -76,5 +118,6 @@ export function filaALead(fila: LeadConRelaciones): Lead {
     correo: correo
       ? `Asunto: ${correo.asunto ?? ""}\n\n${correo.cuerpo ?? ""}`
       : "",
+    telefono: fila.telefono ?? "",
   };
 }

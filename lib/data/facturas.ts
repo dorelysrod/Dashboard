@@ -41,6 +41,33 @@ function nombreCliente(c: FilaFactura["clientes"]): string {
   return obj?.nombre ?? "—";
 }
 
+/** Una factura por id (vista imprimible). Null si no existe o no hay base. */
+export async function obtenerFactura(id: string): Promise<Factura | null> {
+  if (!supabaseConfigurado()) return null;
+
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("facturas")
+    .select("id, concepto, mxn, eur, tipo, estado, fecha, clientes(nombre)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const f = data as FilaFactura;
+  return {
+    id: f.id,
+    cliente: nombreCliente(f.clientes),
+    concepto: f.concepto ?? "—",
+    eur: f.eur ?? 0,
+    mxn: f.mxn ?? 0,
+    tipo: f.tipo,
+    estado: f.estado,
+    fecha: f.fecha,
+  };
+}
+
 export async function obtenerFacturas(): Promise<ResumenFacturas> {
   if (!supabaseConfigurado()) {
     return { facturas: [], totalPagadoEur: 0, totalPendienteEur: 0 };

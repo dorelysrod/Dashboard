@@ -49,3 +49,24 @@ test("parseCorreo separa asunto y cuerpo multilínea", () => {
   assert.equal(r.asunto, "Tu nueva web");
   assert.equal(r.cuerpo, "Hola,\ntenemos una propuesta.");
 });
+
+// Fase 2: los parsers aceptan también JSON (salida estructurada del proveedor
+// automático), no solo el texto etiquetado que se pega en modo manual.
+test("parseInspeccion acepta JSON de la salida estructurada", () => {
+  const raw = JSON.stringify({
+    tecnologia: "Next.js",
+    hosting: "Vercel",
+    mejoras: ["SEO", "Velocidad"],
+    recomendacion: "Rehacer con reservas.",
+  });
+  const r = parseInspeccion(raw);
+  assert.equal(r.tecnologia, "Next.js");
+  assert.deepEqual(r.mejoras, ["SEO", "Velocidad"]);
+  assert.equal(r.recomendacion, "Rehacer con reservas.");
+});
+
+test("parseCotizacion acepta totalMxn numérico desde JSON", () => {
+  const r = parseCotizacion(JSON.stringify({ modulos: ["Agenda"], totalMxn: 22000 }));
+  assert.deepEqual(r.modulos, ["Agenda"]);
+  assert.equal(r.totalMxn, 22000);
+});

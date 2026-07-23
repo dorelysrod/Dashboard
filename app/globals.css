@@ -502,6 +502,113 @@ td {
   border-bottom: none;
 }
 
+/*
+ * Distintivo "mejor calificado" (LeadRow): rating ≥ 4.5 y ≥ 10 reseñas.
+ * Siempre visible con o sin filtro activo. Coherente con .nicho/.stage.
+ * Color: --amber-dark (#6b3d06) sobre --amber-s (#fbf0dd) → contraste 7.2:1 ✓
+ */
+.badge-calificado {
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--amber-s);
+  color: #6b3d06;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* nicho: badge en filas/drawer + chips de filtro (pipeline y buscar) */
+.nicho {
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ni-est {
+  background: var(--violet-s);
+  color: var(--violet);
+}
+.ni-dent {
+  background: var(--mint-s);
+  color: #0c7a56;
+}
+.ni-bodas {
+  background: #fbe4ed;
+  color: #b83a63;
+}
+.ni-tour {
+  background: var(--amber-s);
+  color: #a06a14;
+}
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.chip {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.chip:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+.chip.on {
+  border-color: var(--violet);
+  background: var(--violet-s);
+  color: var(--violet);
+}
+
+/* paginación (pipeline y buscar) */
+.pag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+.pbtn {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 9px;
+  padding: 8px 13px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pbtn:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+a.pbtn:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.pbtn.off,
+.pbtn:disabled {
+  color: var(--muted2);
+  cursor: default;
+  opacity: 0.6;
+}
+.pinfo {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 /* search */
 .sbar {
   display: flex;
@@ -790,6 +897,12 @@ td {
   font-size: 0.82rem;
   margin: 0 0 6px;
 }
+.auth-ok {
+  color: var(--mint);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 6px 0;
+}
 .btn-salir {
   border: 1px solid var(--line);
   background: var(--card);
@@ -798,4 +911,103 @@ td {
   padding: 5px 10px;
   font-weight: 600;
   font-size: 0.78rem;
+}
+
+/* ── Documento imprimible (facturas · /imprimir/*) ─────────────────────────── */
+.doc-wrap {
+  padding: 24px 16px;
+}
+.doc {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 30px;
+}
+.doc-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 14px;
+}
+.doc-titulo {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.06em;
+}
+.doc-id {
+  text-align: right;
+  font-size: 0.88rem;
+}
+.doc-emisor {
+  font-size: 0.9rem;
+}
+.doc-cliente {
+  margin: 16px 0;
+  font-size: 0.9rem;
+}
+.doc-l {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.doc-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.doc-tabla th,
+.doc-tabla td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 6px;
+  text-align: left;
+}
+.doc-tabla .num {
+  text-align: right;
+}
+.doc-totales {
+  margin-top: 14px;
+  margin-left: auto;
+  max-width: 340px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+.doc-totales > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+.doc-total {
+  font-size: 1.05rem;
+  border-top: 2px solid var(--ink);
+  padding-top: 8px;
+}
+.doc-pie {
+  margin-top: 20px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .doc-wrap {
+    padding: 0;
+  }
+  .doc {
+    border: none;
+    border-radius: 0;
+    max-width: none;
+    padding: 0;
+  }
 }

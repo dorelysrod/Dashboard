@@ -1,4 +1,6 @@
 import { obtenerFiscal } from "@/lib/data/fiscal";
+import { obtenerFiscalVe } from "@/lib/data/fiscal-ve";
+import { fBs } from "@/lib/data/fiscal-ve-calculos";
 import { fE } from "@/lib/format";
 
 const nMxn = new Intl.NumberFormat("es-ES");
@@ -7,9 +9,15 @@ const nTc = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 4,
 });
 
-/** Fiscal y contabilidad: BTW trimestral + inkomstenbelasting anual, desde Supabase. */
+const fUt = new Intl.NumberFormat("es-VE", { maximumFractionDigits: 1 });
+
+/**
+ * Fiscal y contabilidad: régimen NL (BTW trimestral + inkomstenbelasting
+ * anual) y régimen VE (ISLR persona natural + IVA mensual + IGTF), desde
+ * Supabase. Orientación — no asesoría.
+ */
 export default async function FiscalPage() {
-  const f = await obtenerFiscal();
+  const [f, ve] = await Promise.all([obtenerFiscal(), obtenerFiscalVe()]);
   const pctHoras = Math.min(
     100,
     Math.round((f.horasRegistradas / f.horasObjetivo) * 100),
@@ -215,6 +223,131 @@ export default async function FiscalPage() {
           </div>
         </div>
       </div>
+
+      <h2 className="vh" style={{ marginTop: 26 }}>
+        Venezuela · persona natural con RIF
+      </h2>
+      <div className="vsub">
+        Declaración estimada desde tus facturas VE. Orientación — confirma con
+        tu contador y el SENIAT.
+      </div>
+
+      {!ve.disponible ? (
+        <div className="note">
+          Falta aplicar la migración <b>20260720200000_facturas_ve.sql</b> en
+          Supabase (<span className="mono">supabase db push</span>) para
+          activar el motor fiscal Venezuela.
+        </div>
+      ) : (
+        <>
+          <div className="kpis" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+            <div className="kpi">
+              <div className="k">Ingresos {ve.ejercicio} (base)</div>
+              <div className="v">{fBs.format(ve.islr.ingresosBs)}</div>
+              <div className="s">
+                {ve.facturasAno} factura{ve.facturasAno === 1 ? "" : "s"} VE ·{" "}
+                {fUt.format(ve.islr.ingresosUt)} UT
+              </div>
+            </div>
+            <div className="kpi">
+              <div className="k">ISLR estimado (anual)</div>
+              <div className="v" style={{ color: "var(--amber)" }}>
+                {fBs.format(ve.islr.impuestoNetoBs)}
+              </div>
+              <div className="s">declaración definitiva DPN-25</div>
+            </div>
+            <div className="kpi">
+              <div className="k">IVA del mes</div>
+              <div className="v">{fBs.format(ve.ivaMesBs)}</div>
+              <div className="s">débito fiscal (forma 30)</div>
+            </div>
+            <div className="kpi">
+              <div className="k">IGTF del mes</div>
+              <div className="v">{fBs.format(ve.igtfMesBs)}</div>
+              <div className="s">3% pagos en divisas</div>
+            </div>
+          </div>
+
+          <div className="cols">
+            <div className="panel">
+              <h3>
+                ISLR · declaración definitiva{" "}
+                <span className="pill">Tarifa N.º 1 · en UT</span>
+              </h3>
+              <div className="pstat" style={{ padding: "6px 0" }}>
+                <span>Ingresos del ejercicio</span>
+                <b className="mono">
+                  {fUt.format(ve.islr.ingresosUt)} UT ·{" "}
+                  {fBs.format(ve.islr.ingresosBs)}
+                </b>
+              </div>
+              <div className="pstat" style={{ padding: "6px 0" }}>
+                <span>− Desgravamen único (774 UT)</span>
+                <b className="mono">−{fUt.format(ve.islr.desgravamenUt)} UT</b>
+              </div>
+              <div className="pstat" style={{ padding: "6px 0" }}>
+                <span>Base imponible</span>
+                <b className="mono">{fUt.format(ve.islr.baseImponibleUt)} UT</b>
+              </div>
+              <div className="pstat" style={{ padding: "6px 0" }}>
+                <span>
+                  Tarifa {Math.round(ve.islr.tramoPct * 100)}% − sustraendo{" "}
+                  {ve.islr.sustraendoUt} UT
+                </span>
+                <b className="mono">{fUt.format(ve.islr.impuestoUt)} UT</b>
+              </div>
+              <div className="pstat" style={{ padding: "6px 0" }}>
+                <span>
+                  − Rebajas (personal 10 UT
+                  {ve.parametros.cargas_familiares > 0 &&
+                    ` + ${ve.parametros.cargas_familiares} carga${
+                      ve.parametros.cargas_familiares === 1 ? "" : "s"
+                    }`}
+                  )
+                </span>
+                <b className="mono">−{fUt.format(ve.islr.rebajasUt)} UT</b>
+              </div>
+              <div className="pstat" style={{ padding: "6px 0" }}>
+                <span>ISLR a pagar (estimado)</span>
+                <b style={{ color: "var(--amber)" }}>
+                  {fBs.format(ve.islr.impuestoNetoBs)}
+                </b>
+              </div>
+              <div className="note">
+                UT = {fBs.format(ve.parametros.ut_bs)} (edítala en Facturación
+                → parámetros).{" "}
+                {ve.islr.obligadoDeclarar
+                  ? "Superas el umbral: estás obligada a declarar."
+                  : "Aún bajo el umbral de declaración (1.000 UT netas / 1.500 UT brutas)."}
+              </div>
+            </div>
+
+            <div className="panel">
+              <h3>
+                IVA e IGTF <span className="pill">mensual</span>
+              </h3>
+              <div className="pstat">
+                <span>Base imponible del mes</span>
+                <b className="mono">{fBs.format(ve.ingresosMesBs)}</b>
+              </div>
+              <div className="pstat">
+                <span>Débito fiscal (IVA 16% cobrado)</span>
+                <b className="mono">{fBs.format(ve.ivaMesBs)}</b>
+              </div>
+              <div className="pstat">
+                <span>IGTF percibido (pagos en divisas)</span>
+                <b className="mono">{fBs.format(ve.igtfMesBs)}</b>
+              </div>
+              <div className="note">
+                La declaración de IVA (forma 30) se presenta cada mes según tu
+                calendario de RIF; resta tus créditos fiscales (IVA de compras
+                con factura) antes de pagar. La declaración definitiva de ISLR
+                va antes del <b>31 de marzo</b> del año siguiente.
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }
